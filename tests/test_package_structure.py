@@ -7,6 +7,9 @@ def test_package():
     assert isinstance(canela.__version__, str)
 
 
-def test_bin():
+def test_subpackages():
     import canela.bin
+    import canela.io
+    import canela.data
+    import canela.lpnc
 
