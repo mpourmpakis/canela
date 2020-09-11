@@ -17,14 +17,17 @@ with open('requirements.txt', 'r') as fid_reqs:
     reqs = [r.strip() for r in fid_reqs.read().splitlines()
             if r and not r.strip().startswith('#')]
 
-setuptools.setup(name='canela',
-                 version=__version__,
-                 author='CANELa (Mpourmpakis Lab)',
-                 url='https://www.github.com/mpourmpakis/canela',
-                 description="CANELa tools to setup, track, and analyze comp chem calculations",
-                 long_description=description,
-                 long_description_content_type='text/markdown',
-                 packages=setuptools.find_packages(),
-                 python_requires='>=3.5',
-                 install_requires=reqs)
+setuptools.setup(
+    name='canela',
+    version=__version__,
+    author='CANELa (Mpourmpakis Lab)',
+    url='https://www.github.com/mpourmpakis/canela',
+    description="CANELa tools to setup, track, and analyze comp chem calcs",
+    long_description=description,
+    long_description_content_type='text/markdown',
+    packages=['canela'],
+    include_package_data=True,  # include data files
+    exclude_package_data={'': ['README.md']},
+    python_requires='>=3.5',
+    install_requires=reqs)
 
