@@ -26,6 +26,8 @@ setuptools.setup(
     long_description=description,
     long_description_content_type='text/markdown',
     packages=['canela'],
+    entry_points={'console_scripts': ['ncsep=canela.bin.ncsep:main',
+                                      'sj_tmole=canela.bin.sj_tmole:main']},
     include_package_data=True,  # include data files
     exclude_package_data={'': ['README.md']},
     python_requires='>=3.5',
