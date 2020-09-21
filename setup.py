@@ -13,9 +13,10 @@ with open('README.md', 'r') as readme:
 
 # get required packages from requirements.txt
 with open('requirements.txt', 'r') as fid_reqs:
-    # ignores commented lines and blank lines
+    # ignores commented lines, blank lines, and pytest
     reqs = [r.strip() for r in fid_reqs.read().splitlines()
-            if r and not r.strip().startswith('#')]
+            if r and not r.strip().startswith('#')
+            and 'pytest' not in r]
 
 setuptools.setup(
     name='canela',
