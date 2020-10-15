@@ -6,3 +6,4 @@ contains tools for:
 
 - setting up comp chem calculations
 - reading/parsing comp chem results
+- writing preprocessed data to disk

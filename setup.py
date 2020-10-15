@@ -11,12 +11,6 @@ with open('README.md', 'r') as readme:
     description = ''.join([i for i in readme.readlines()
                            if not i.startswith('![')])
 
-# get required packages from requirements.txt
-with open('requirements.txt', 'r') as fid_reqs:
-    # ignores commented lines and blank lines
-    reqs = [r.strip() for r in fid_reqs.read().splitlines()
-            if r and not r.strip().startswith('#')]
-
 setuptools.setup(
     name='canela',
     version=__version__,
@@ -26,8 +20,13 @@ setuptools.setup(
     long_description=description,
     long_description_content_type='text/markdown',
     packages=['canela'],
+    entry_points={'console_scripts': ['ncsep=canela.bin.ncsep:main',
+                                      'sj_tmole=canela.bin.sj_tmole:main']},
     include_package_data=True,  # include data files
     exclude_package_data={'': ['README.md']},
     python_requires='>=3.5',
-    install_requires=reqs)
+    install_requires=['ase~=3.20',
+                      'click~=7.1',
+                      'dscribe~= 0.4'],
+    tests_require=['pytest~=6.0'])
 
