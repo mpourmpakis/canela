@@ -1,14 +1,16 @@
 import pytest
 import canela.lpnc as lpnc
-from canela.data import data_path
+import canela.data
 import os
+import importlib.resources
 import ase
 import ase.io
 
 @pytest.fixture(scope='module')
 def au25():
     # get Au25(PET)18 nanocluster ase.Atoms object
-    return ase.io.read(os.path.join(data_path, 'au25_pet18_opt_-1.xyz'))
+    with importlib.resources.path(canela.data, 'au25_pet18_opt_-1.xyz') as p:
+        return ase.io.read(p)
 
 @pytest.fixture(scope='module')
 def au25cs_dets(au25):
