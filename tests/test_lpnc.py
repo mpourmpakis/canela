@@ -33,6 +33,5 @@ def test_count_motifs__au25_shell_only_has_6_dimers(au25):
     assert au25[motifs[2].flatten()].get_chemical_formula() == 'Au12S18'
 
     # there should only be the 6 dimers in motifs dict
-    motifs.pop(2)
-    assert motifs == {}
+    assert set(motifs) == {2}
 
