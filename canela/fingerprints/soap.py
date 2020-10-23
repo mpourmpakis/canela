@@ -15,6 +15,12 @@ from canela.fingerprints.grid import calc_grid
 @click.option('-rcut', default=5.0, help='Cutoff radius in Angstrom')
 @click.option('-procs', default=1, help='Processes for parallel execution')
 def create_soap(filepath, nmax, lmax, rcut, procs):
+    """
+    Script to calculate SOAP fingerprints on spatial grid points of
+    data from input .cube file.
+
+    Assumes Au is only species and system is nonperiodic.
+    """
     species = ['Au']
     soap = SOAP(
         species=species,
