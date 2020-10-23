@@ -49,7 +49,7 @@ def create_soap(filepath, nmax, lmax, rcut, procs):
 
     print('Flattening rho...')
     start = time.time()
-    rho = rho.flatten(order='C')  # flatten in row-major order to match grid order
+    rho = rho.flatten(order='C')  # flatten in row-major order to match grid 
     rho = rho.reshape(-1, 1)
     elapsed = time.time() - start
     print('DONE in ', elapsed, '\n')
