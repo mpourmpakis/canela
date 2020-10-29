@@ -16,6 +16,7 @@ from canela.fingerprints.grid import calc_grid
 @click.option('-lmax', default=2, help='Max degree of spherical harmonics')
 @click.option('-rcut', default=5.0, help='Cutoff radius in Angstrom')
 @click.option('-procs', default=1, help='Processes for parallel execution')
+@click.version_option(__version__)
 def create_soap(filepath, nmax, lmax, rcut, procs):
     """
     Script to calculate SOAP fingerprints on spatial grid points of
@@ -88,10 +89,3 @@ def create_soap(filepath, nmax, lmax, rcut, procs):
     print('DONE in ', elapsed, '\n')
     print('ALL DONE')
 
-
-def main():
-    # print version if that is only arg
-    if len(sys.argv) > 1 and sys.argv[1] == '--version':
-        print('soap, ' + __version__)
-    else:
-        create_soap()
