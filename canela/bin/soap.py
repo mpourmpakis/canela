@@ -89,6 +89,3 @@ def create_soap(filepath, nmax, lmax, rcut, procs):
     print('DONE in ', elapsed, '\n')
     print('ALL DONE')
 
-
-def main():
-    create_soap()
