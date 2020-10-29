@@ -1,8 +1,10 @@
 import time
+import sys
 
 import click
 from dscribe.descriptors import SOAP
 
+from canela import __version__
 from canela.io.cube import read_cube
 from canela.io.pickle import write_pickle
 from canela.fingerprints.grid import calc_grid
@@ -87,7 +89,9 @@ def create_soap(filepath, nmax, lmax, rcut, procs):
     print('ALL DONE')
 
 
-# if __name__ == '__main__':
-#     create_soap()
 def main():
-    create_soap()
+    # print version if that is only arg
+    if len(sys.argv) > 1 and sys.argv[1] == '--version':
+        print('soap, ' + __version__)
+    else:
+        create_soap()
