@@ -87,5 +87,7 @@ def create_soap(filepath, nmax, lmax, rcut, procs):
     print('ALL DONE')
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
+#     create_soap()
+def main():
     create_soap()
