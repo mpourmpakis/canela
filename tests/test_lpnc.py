@@ -9,7 +9,7 @@ import ase.io
 @pytest.fixture(scope='module')
 def au25():
     # get Au25(PET)18 nanocluster ase.Atoms object
-    with importlib.resources.path(canela.data, 'au25_pet18_opt_-1.xyz') as p:
+    with importlib.resources.path(canela.data, 'au25_pet18_-1.xyz') as p:
         return ase.io.read(p)
 
 @pytest.fixture(scope='module')
