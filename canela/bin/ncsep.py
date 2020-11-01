@@ -17,7 +17,8 @@ VCEN = int(CEN // 1.8)
 
 # set of transition metals
 METALS = set()
-[METALS.add(sym) for r in [21, 39, 71, 103] for sym in chemical_symbols[r:r+10]]
+[METALS.add(sym) for at_num in [21, 39, 71, 103]
+ for sym in chemical_symbols[at_num:at_num+10]]
 
 # set of metals and S
 MS = METALS.copy()
