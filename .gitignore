@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Sphinx local builds
+docs/_templates/
+docs/_static/
+docs/_build/
+
 # C extensions
 *.so
 
