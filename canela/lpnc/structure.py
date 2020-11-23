@@ -37,15 +37,15 @@ def build_neighborlist(atom, scale=SCALE):
     """creates NeighborList object based on atom
 
     Arguments:
-        atom {ase.Atoms} -- atoms object
+        atom (ase.Atoms): atoms object
 
     Keyword Arguments:
-        scale {float} -- scales covalent radii of each atom
-                         (default: {1.0})
+        scale (float): scales covalent radii of each atom
+                       (default: 1.0)
 
     Returns:
-        {NeighborList}: neighborlist object that can calculate all neighbors
-                        of a given atom
+        (NeighborList): ase neighborlist object that can calculate all
+                        neighbors of a given atom
     """
     radii = covalent_radii[atom.numbers] * scale
 
@@ -57,8 +57,7 @@ def build_neighborlist(atom, scale=SCALE):
 
 
 def flatten_ls(val, _tot=[]):
-    """
-    Flattens an arbitrary list of values (ints, floats, str, etc.) and lists
+    """flattens an arbitrary list of values (ints, floats, str, etc.) and lists
     """
     if not isinstance(val, list):
         return _tot + [val]
@@ -73,24 +72,24 @@ def get_bonds(atom, scale=SCALE, neighbor_list=None,
     """finds bonds between atoms based on bonding radii
 
     Arguments:
-        atom {ase.Atoms} -- atoms object
+        atom (ase.Atoms): atoms object
 
     Keyword Arguments:
-        scale {float} -- scales covalent bonding radii of atoms
-                         (default: {1.0})
-        neighbor_list {NeighborList} -- a neighborlist that was already
+        scale (float): scales covalent bonding radii of atoms
+                         (default: 1.0)
+        neighbor_list (NeighborList): a neighborlist that was already
                                             built for atoms object
                                             (default: {None})
-        return_neighbor_list {bool} -- if True, neighbor_list is returned with
+        return_neighbor_list (bool): if True, neighbor_list is returned with
                                        bonds list
-                                       (default: {False})
+                                       (default: False)
 
     Returns:
-        bonds list {list of lists} -- [[bond-1-atom-1, bond-1-atom-2],
+        bonds list (list of lists): [[bond-1-atom-1, bond-1-atom-2],
                                        [bond-2-atom-1, bond-2-atom-2],
                                        [bond-3-atom-1, bond-3-atom-2],
                                        ...etc]
-        neighbor_list -- if return_neighbor_list is True
+        neighbor_list: if return_neighbor_list is True
     """
     if neighbor_list is None:
         n = build_neighborlist(atom, scale=scale)
@@ -125,30 +124,26 @@ def get_bonds(atom, scale=SCALE, neighbor_list=None,
         return bonds, n
     else:
         return bonds
-
-
-def get_core_shell(atom, neighbor_list=None, scale=SCALE,
-                   sulfido_in_core=False, show=False):
-    """
-    Separates metal NC into core and shell based on "divide and protect" theory
+def get_core_shell(atom, neighbor_list=None, scale=SCALE, sulfido_in_core=False, show=False):
+    """separates metal NC into core and shell based on 'divide and protect' theory
 
     Arguments:
-        atom {ase.Atoms} -- metal NC atoms object
+        atom (ase.Atoms): metal NC atoms object
 
     Keyword Arguments:
-        neighbor_list {NeighborList} -- ase NeighborList object for metal NC
-                                        (default: {None})
-        scale {float} -- scale covalent radii of each atom - for determining
+        neighbor_list (NeighborList): ase NeighborList object for metal NC
+                                        (default: None)
+        scale (float): scale covalent radii of each atom - for determining
                          neighbors when no neighborlist is passed in
-                         (default: {1.0})
-        sulfido_in_core {bool} -- True: sulfido atoms were included in core
+                         (default: 1.0)
+        sulfido_in_core (bool): True: sulfido atoms were included in core
                                   False: sulfido atoms were included in shell
-                                  (default: {False})
-        show {bool} -- prints details of core and shell if True
-                       (defauls: {False})
+                                  (default: False)
+        show (bool): prints details of core and shell if True
+                       (defauls: False)
 
     Returns:
-        core shell info {dict} -- {core: core atom indices,
+        core shell info (dict): {core: core atom indices,
                                    shell: shell atom indices,
                                    sulfido: sulfido atom indices,
                                    bridge: bridging S indices,
@@ -278,28 +273,27 @@ def get_core_shell(atom, neighbor_list=None, scale=SCALE,
 
 def count_motifs(atom, full_cluster=False, scale=SCALE,
                  show=False, sulfido=[], sulfido_in_core=False):
-    """
-    Algorithmically determine motif types and counts of metal NC
+    """algorithmically determine motif types and counts of metal NC
 
     Arguments:
-        atom {ase.Atoms} -- metal NC atoms object
+        atom (ase.Atoms): metal NC atoms object
 
     Keyword Arguments:
-        full_cluster {bool} -- if False, atoms object only contains shell
-                               (default: {False})
-        scale {float} -- scales covalent radii when calculating neighborlist
-                         (default: {1.0})
-        show {bool} -- if True, motif info is printed
-                       (default: {False})
-        sulfido {list} -- list of sulfido atom indices found from
+        full_cluster (bool): if False, atoms object only contains shell
+                               (default: False)
+        scale (float): scales covalent radii when calculating neighborlist
+                         (default: 1.0)
+        show (bool): if True, motif info is printed
+                       (default: False)
+        sulfido (list): list of sulfido atom indices found from
                           get_core_shell function
-                          (default: {[]})
-        sulfido_in_core {bool} -- True: sulfido atoms were included in core
+                          (default: [])
+        sulfido_in_core (bool): True: sulfido atoms were included in core
                                   False: sulfido atoms were included in shell
-                                  (default: {False})
+                                  (default: False)
 
     Returns:
-        motif info {dict}: {-1: [sulfido indices],
+        motif info (dict): {-1: [sulfido indices],
                              0: [bridging S indices],
                              1: [monomer (S-M-S) indices],
                              2: [dimer (S-M-S-M-S) indices],
@@ -413,13 +407,13 @@ def print_motifs(motifs_dict, sulfido_in_core=False):
     """prints motif types and counts of dict from count_motifs function
 
     Arguments:
-        motifs_dict {dict} -- motifs dictionary returned from count_motifs
+        motifs_dict (dict): motifs dictionary returned from count_motifs
                               function
 
     Keyword Arguments:
-        sulfido_in_core {bool} -- True: sulfido atoms were included in core
+        sulfido_in_core (bool): True: sulfido atoms were included in core
                                   False: sulfido atoms were included in shell
-                                  (default: {False})
+                                  (default: False)
     """
     print('---- Motifs Info ----'.center(CEN))
     if -1 in motifs_dict:
@@ -441,17 +435,17 @@ def save_view_atom(baseatom, options, args, action='save', ne_core=False):
     """creates atom object of args passed in and saves or visualizes it
 
     Arguments:
-        baseatom {ase.Atoms} -- full atoms object to take
-        options {dict} -- sections of atoms object that can be pieced together
+        baseatom (ase.Atoms): full atoms object to take
+        options (dict): sections of atoms object that can be pieced together
                           to make temp atom
-        args {list} -- list of args that should match options keys to make
+        args (list): list of args that should match options keys to make
                        temp atom
 
     Keyword Arguments:
-        action {str} -- either save or vis temp atom
-                        (default: {'save'})
-        ne_core {bool} -- convert core metal atoms to Ne
-                          (default: {True})
+        action (str): either save or vis temp atom
+                        (default: 'save')
+        ne_core (bool): convert core metal atoms to Ne
+                          (default: True)
     """
     # build atoms object based on args
     showme = []
@@ -500,19 +494,18 @@ def save_view_atom(baseatom, options, args, action='save', ne_core=False):
 
 
 def summ_nc_dir(dirpath, scale=SCALE, sulfido_in_core=False):
-    """
-    Calculates core shell info and motifs of all XYZ files in a given directory
+    """calculates core shell info and motifs of all XYZ files in a given directory
 
     Arguments:
-        dirpath {str} -- path to a directory containing NC .xyz files
+        dirpath (str): path to a directory containing NC .xyz files
 
     Keywork Arguments:
-        scale {float} -- scale covalent radii of each atom - for determining
+        scale (float): scale covalent radii of each atom - for determining
                          neighbors when no neighborlist is passed in
-                         (default: {1.0})
-        sulfido_in_core {bool} -- True: sulfido atoms were included in core
+                         (default: 1.0)
+        sulfido_in_core (bool): True: sulfido atoms were included in core
                                   False: sulfido atoms were included in shell
-                                  (default: {False})
+                                  (default: False)
     """
     for f in os.listdir(dirpath):
         # read in xyz path
