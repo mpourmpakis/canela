@@ -28,9 +28,9 @@ MS = METALS.copy()
 MS.add('S')
 
 # names of motifs
-MOTIFNAMES = ['bridging S', 'monomer', 'dimer', 'trimer', 'tetramer',
-              'pentamer', 'hexamer', 'heptamer', 'octamer'] + \
-              ['%imer' % i for i in range(9, 2000)]
+MOTIFNAMES = {0: 'bridging S', 1: 'monomer', 2: 'dimer', 3: 'trimer',
+              4: 'tetramer', 5: 'pentamer', 6: 'hexamer', 7: 'heptamer',
+              8: 'octamer'}
 
 
 def build_neighborlist(atom, scale=SCALE):
@@ -424,10 +424,10 @@ def print_motifs(motifs_dict, sulfido_in_core=False):
     for m in sorted(motifs_dict):
         if m == -1:
             name = 'sulfido'
-        elif m < -1:
-            name = MOTIFNAMES[-m] + 'ic-ring'
         else:
-            name = MOTIFNAMES[m]
+            name = MOTIFNAMES.get(abs(m), '%imer' % abs(m))
+            if m < -1:
+                name += 'ic-ring'
         print(name.rjust(VCEN) + ': %i' % (len(motifs_dict[m])))
 
 
