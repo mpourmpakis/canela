@@ -20,7 +20,7 @@ setuptools.setup(
     long_description=description,
     long_description_content_type='text/markdown',
     packages=['canela'],
-    entry_points={'console_scripts': ['ncsep=canela.bin.ncsep:main',
+    entry_points={'console_scripts': ['ncsep=canela.bin.ncsep:ncsep',
                                       'sj_tmole=canela.bin.sj_tmole:main',
                                       'soap=canela.bin.soap:create_soap']},
     include_package_data=True,  # include data files

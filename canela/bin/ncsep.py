@@ -1,13 +1,10 @@
 import canela.lpnc as lpnc
 from canela import __version__
-import argparse
+import click
 import sys
 import ase.io
 from ase.data import chemical_symbols
 
-
-# default bonding scale (SCALE * covalent_radii)
-SCALE = 1.0
 
 # center output
 CEN = 40
@@ -29,74 +26,35 @@ MOTIFNAMES = ['bridging S', 'monomer', 'dimer', 'trimer', 'tetramer',
               'pentamer', 'hexamer', 'heptamer', 'octamer'] + \
               ['%imer' % i for i in range(9, 2000)]
 
+@click.command(name='ncsep',
+               context_settings={'help_option_names':['-h', '--help'],
+                                 'show_default': True})
+@click.version_option(__version__)
+@click.argument('nc_path', type=str)
+@click.option('-s', '--save', type=str, metavar='<s>', multiple=True,
+              help='saves .xyz files based on arg passed in - "cs":'
+              ' saves core and shell files')
+@click.option('--scale', type=float, default=1.0, metavar='<f>',
+              help='bond distance = covalent_radii x scale')
+@click.option('--no-motifs', is_flag=True, help="don't print motif info on nc")
+@click.option('--sulfido-core', is_flag=True,
+              help='sulfidos are added to core and not '
+              'considered when determining motifs (default included in shell)')
+@click.option('-v', '--vis', type=str, metavar='<section>', multiple=True,
+              help='can visualize core, shell, ligands, motifs, and/or nc')
+@click.option('--save-core-as-ne', is_flag=True,
+              help='saves core atoms as ne atoms')
+def ncsep(nc_path, save, scale, no_motifs, sulfido_core, vis, save_core_as_ne):
+    """Dissects LPNC structure to determine: core, shell, ligands, and motifs
 
-def ncsep_script():
-    """ncsep script"""
-    parser = argparse.ArgumentParser(
-                description='Separate NC into core and shell - '
-                            'can provide motif info and visualize '
-                            'core and shell')
-
-    # REQUIRED
-    parser.add_argument(
-        'nc_path',
-        type=str,
-        help='path to NC geometry file')
-
-    # OPTIONAL
-    parser.add_argument(
-        '--save',
-        nargs='*',
-        help='saves .xyz files based on arg passed in - no argument:'
-             ' core and shell files')
-
-    parser.add_argument(
-        '--scale',
-        type=float,
-        default=SCALE,
-        help='scales covalent_radii when calculating bonds (Default: %s)'
-             % (str(SCALE)))
-
-    parser.add_argument(
-        '--nomotifs',
-        action='store_true',
-        help='do not print motif info on NC')
-
-    parser.add_argument(
-        '--sulfidocore',
-        action='store_true',
-        help='sulfidos are added to core and not '
-             'considered when determining motifs (Default included in shell)')
-
-    parser.add_argument(
-        '--vis',
-        nargs='+',
-        default=None,
-        help='can visualize core, shell, ligands, nc, or motifs')
-
-    parser.add_argument(
-        '--ne_core',
-        action='store_true',
-        help='saves core atoms as Ne atoms')
-
-    parser.add_argument(
-        '--version',
-        action='store_true',
-        help='print current version of script')
-
-    # PARSE ARGUMENTS
-    args = parser.parse_args()
-
-    # print current version
-    if args.version:
-        print('ncsep, ' + __version__)
-
+    nc_path: path to nc geometry file (.xyz, .pdb, etc.)
+    """
     # read in NC structure
-    atom = ase.io.read(args.nc_path)
+    atom = ase.io.read(nc_path)
 
     # split atoms into core and shell and print core shell info
-    info = lpnc.get_core_shell(atom, scale=args.scale,
-                               sulfido_in_core=args.sulfidocore,
+    info = lpnc.get_core_shell(atom, scale=scale,
+                               sulfido_in_core=sulfido_core,
                                show=True)
 
     # create core atoms obj
@@ -104,7 +62,7 @@ def ncsep_script():
     core.info['cnavg'] = info['corecnavg']
     core.info['cnavg_justcore'] = info['justcorecnavg']
 
-    if info['sulfido'] and args.sulfidocore:
+    if info['sulfido'] and sulfido_core:
         core.info['nsulfido'] = len(info['sulfido'])
 
     # create shell atoms obj
@@ -112,10 +70,10 @@ def ncsep_script():
     shell.info['nshellint'] = info['nshellint']
 
     # MOTIF INFO
-    if not args.nomotifs:
-        all_motifs = lpnc.count_motifs(shell, scale=args.scale, show=True,
+    if not no_motifs:
+        all_motifs = lpnc.count_motifs(shell, scale=scale, show=True,
                                        sulfido=info['sulfido'],
-                                       sulfido_in_core=args.sulfidocore)
+                                       sulfido_in_core=sulfido_core)
 
     # create options dict for saving and visualizing
     options = {'nc': atom,
@@ -129,7 +87,7 @@ def ncsep_script():
                                      if a.symbol not in METALS])}
 
     # add specific motifs found to visualization options
-    if not args.nomotifs:
+    if not no_motifs:
         # atoms object that motif indices are mapped to
         for mot in all_motifs:
             useatom = shell
@@ -149,31 +107,16 @@ def ncsep_script():
             options[name] = useatom[f]
 
     # SAVE INFO
-    if args.save is not None:
-        print('')
-        print('---- Saving XYZs ----'.center(CEN))
-
-        # save core.xyz and shell.xyz
-        if args.save == []:
-            core.write('core.xyz')
-            shell.write('shell.xyz')
-            print('save: core, shell'.center(CEN))
-        else:
-            lpnc.save_view_atom(atom, options, args.save, 'save', args.ne_core)
+    if save:
+        click.echo('')
+        click.echo('---- Saving XYZs ----'.center(CEN))
+        lpnc.save_view_atom(atom, options, save, 'save', save_core_as_ne)
 
     # VIS INFO
-    if args.vis is not None:
-        print('')
-        print('----- Vis. Info -----'.center(CEN))
-        lpnc.save_view_atom(atom, options, args.vis, 'vis', args.ne_core)
+    if vis:
+        click.echo('')
+        click.echo('----- Vis. Info -----'.center(CEN))
+        lpnc.save_view_atom(atom, options, vis, 'vis', save_core_as_ne)
 
-    print('-' * CEN)
-
-
-def main():
-    # print version if that is only arg
-    if len(sys.argv) > 1 and sys.argv[1] == '--version':
-        print('ncsep, ' + __version__)
-    else:
-        ncsep_script()
+    click.echo('-' * CEN)
 
