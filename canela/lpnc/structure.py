@@ -124,8 +124,11 @@ def get_bonds(atom, scale=SCALE, neighbor_list=None,
         return bonds, n
     else:
         return bonds
-def get_core_shell(atom, neighbor_list=None, scale=SCALE, sulfido_in_core=False, show=False):
-    """separates metal NC into core and shell based on 'divide and protect' theory
+
+
+def get_core_shell(atom, neighbor_list=None, scale=SCALE,
+                   sulfido_in_core=False, show=False):
+    """separates LPNC into core and shell based on "divide and protect" theory
 
     Arguments:
         atom (ase.Atoms): metal NC atoms object
@@ -362,7 +365,6 @@ def count_motifs(atom, full_cluster=False, scale=SCALE,
                 if (b != i and (aus[b].symbol != aus[i].symbol)
                    and b not in used):
                     motif.insert(len(motif) * last, b)
-                    # print('-'.join([aus[z].symbol for z in motif]), end='\r')
 
                     # remove b from aus_i
                     aus_i.remove(b)
