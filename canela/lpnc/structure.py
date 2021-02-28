@@ -345,15 +345,17 @@ def count_motifs(atom, full_cluster=False, scale=SCALE,
     motif = []
     used = set()
     ends_found = [0, 0]
-    while aus_i:
+
+    # set max iterations to avoid endless while loop
+    max_iter = 1000
+    for _ in range(max_iter):
         if not motif:
             i = aus_i.pop()
             motif = [i]
             used.add(i)
-            # print(aus[i].symbol, end='\r')
 
         # find atoms bonded to i
-        for i, last in zip([motif[-1], motif[0]], [True, False]):
+        for i, last in zip([motif[-1], motif[0]], [1, 0]):
             if ends_found[last]:
                 continue
 
@@ -379,13 +381,19 @@ def count_motifs(atom, full_cluster=False, scale=SCALE,
         # once both motif ends found, add it to all_motifs
         if sum(ends_found) == 2 or not aus_i:
             # else all of motif has been found
-            if len(motif) == 1:
-                mtype = 0
-            elif len(motif) % 2:
-                mtype = int((len(motif) - 1) / 2)
-            else:
-                mtype = -int(len(motif) / 2)
+
+            # use number of atoms in motif to determine integer name (mtype)
+            # S-M-S-M-S: 5 atoms // 2 = 2: dimer
+            mtype = len(motif) // 2
+
+            # if len(motif) is even, negate mtype to indicate ring
+            # -S-M-S-M-S-M-S-M-: (8 atom ring // 2)* - 1 = -4: tetrameric ring
+            if len(motif) % 2 == 0:
+                mtype *= -1
+
+            # get the correct indices that map back to atoms obj passed in
             atom_indices = mapping_i[motif].tolist()
+
             if mtype not in all_motifs:
                 all_motifs[mtype] = [atom_indices]
             else:
@@ -394,7 +402,15 @@ def count_motifs(atom, full_cluster=False, scale=SCALE,
             # reset motif list
             motif = []
             ends_found = [0, 0]
-            # print('')
+
+        # if no M S atoms left, terminate loop
+        if not aus_i:
+            break
+
+    # raise ValueError if unable to classify all M S atoms into motifs
+    # within <max_iter>
+    else:
+        raise ValueError(f"Motif algorithm exceeded {max_iter:,} iterations.")
 
     for m in all_motifs:
         all_motifs[m] = np.array(all_motifs[m])
