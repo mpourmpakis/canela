@@ -223,11 +223,11 @@ def get_core_shell(atom, neighbor_list=None, scale=SCALE,
 
     if num_core:
         # calculate min shell-to-core distance for Au shell atoms
-        dists = [min([atom.get_distance(sh, c) for c in core])
-                 for sh in shell if atom[sh].symbol in METALS]
+        dists = np.array([min([atom.get_distance(sh, c) for c in core])
+                          for sh in shell if atom[sh].symbol in METALS])
 
         # add Au atoms to nshellint if their distance is < 5 to core
-        nshellint = sum([1 for m in dists if m < 5.0])
+        nshellint = sum(dists < 5)
     else:
         nshellint = 0
 
