@@ -42,7 +42,7 @@ MOTIFNAMES = ['bridging S', 'monomer', 'dimer', 'trimer', 'tetramer',
               help='can visualize core, shell, ligands, motifs, and/or nc' +
                    '\n visualizes core as Ne and sulfidos as P')
 @click.option('--save-neon-core', is_flag=True,
-              help='saves core atoms as ne atoms')
+              help='saves core atoms as Ne atoms')
 def ncsep(nc_path, save, scale, no_motifs, vis, save_neon_core):
     """Dissects LPNC structure to determine: core, shell, ligands, and motifs
 
