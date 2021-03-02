@@ -4,6 +4,7 @@ import click
 import sys
 import ase.io
 from ase.data import chemical_symbols
+import numpy as np
 
 
 # center output
@@ -37,43 +38,47 @@ MOTIFNAMES = ['bridging S', 'monomer', 'dimer', 'trimer', 'tetramer',
 @click.option('--scale', type=float, default=1.0, metavar='<f>',
               help='bond distance = covalent_radii x scale')
 @click.option('--no-motifs', is_flag=True, help="don't print motif info on nc")
-@click.option('--sulfido-core', is_flag=True,
-              help='sulfidos are added to core and not '
-              'considered when determining motifs (default included in shell)')
 @click.option('-v', '--vis', type=str, metavar='<section>', multiple=True,
-              help='can visualize core, shell, ligands, motifs, and/or nc')
-@click.option('--save-core-as-ne', is_flag=True,
+              help='can visualize core, shell, ligands, motifs, and/or nc' +
+                   '\n visualizes core as Ne and sulfidos as P')
+@click.option('--save-neon-core', is_flag=True,
               help='saves core atoms as ne atoms')
-def ncsep(nc_path, save, scale, no_motifs, sulfido_core, vis, save_core_as_ne):
+def ncsep(nc_path, save, scale, no_motifs, vis, save_neon_core):
     """Dissects LPNC structure to determine: core, shell, ligands, and motifs
 
     nc_path: path to nc geometry file (.xyz, .pdb, etc.)
     """
     # read in NC structure
     atom = ase.io.read(nc_path)
+    atom.set_tags(range(len(atom)))
 
     # split atoms into core and shell and print core shell info
-    info = lpnc.get_core_shell(atom, scale=scale,
-                               sulfido_in_core=sulfido_core,
-                               show=True)
+    info = lpnc.get_core_shell(atom, scale=scale, show=True)
 
     # create core atoms obj
-    core = atom[info['core']]
-    core.info['cnavg'] = info['corecnavg']
-    core.info['cnavg_justcore'] = info['justcorecnavg']
-
-    if info['sulfido'] and sulfido_core:
-        core.info['nsulfido'] = len(info['sulfido'])
+    core = []
+    if info['core']:
+        core = atom[info['core']]
+        core.info['cnavg'] = info['corecnavg']
+        core.info['cnavg_justcore'] = info['justcorecnavg']
 
     # create shell atoms obj
     shell = atom[info['shell']]
     shell.info['nshellint'] = info['nshellint']
 
+    if info['sulfido']:
+        shell.info['nsulfido'] = len(info['sulfido'])
+
     # MOTIF INFO
     if not no_motifs:
+        # need to map sulfidos to shell indices
+        map_s0 = info['sulfido']
+        if info['sulfido']:
+            map_s0 = np.where(np.vstack(info['sulfido']) == info['shell'])[1]
+
+        # get motif info dict
         all_motifs = lpnc.count_motifs(shell, scale=scale, show=True,
-                                       sulfido=info['sulfido'],
-                                       sulfido_in_core=sulfido_core)
+                                       sulfido=map_s0)
 
     # create options dict for saving and visualizing
     options = {'nc': atom,
@@ -86,13 +91,14 @@ def ncsep(nc_path, save, scale, no_motifs, sulfido_core, vis, save_core_as_ne):
                'ligands': ase.Atoms([a for a in atom
                                      if a.symbol not in METALS])}
 
+    if not len(options['core']):
+        options.pop('core')
+
     # add specific motifs found to visualization options
     if not no_motifs:
         # atoms object that motif indices are mapped to
         for mot in all_motifs:
-            useatom = shell
             if mot == -1:
-                useatom = atom
                 name = 'sulfido'
             elif mot == 0:
                 name = 'bridge'
@@ -104,19 +110,19 @@ def ncsep(nc_path, save, scale, no_motifs, sulfido_core, vis, save_core_as_ne):
             # create atoms object for each motif type
             # (flatten lists of lists of any size)
             f = lpnc.flatten_ls(list(all_motifs[mot].flatten()))
-            options[name] = useatom[f]
+            options[name] = shell[f]
 
     # SAVE INFO
     if save:
         click.echo('')
         click.echo('---- Saving XYZs ----'.center(CEN))
-        lpnc.save_view_atom(atom, options, save, 'save', save_core_as_ne)
+        lpnc.save_view_atom(atom, options, save, 'save', save_neon_core)
 
     # VIS INFO
     if vis:
         click.echo('')
         click.echo('----- Vis. Info -----'.center(CEN))
-        lpnc.save_view_atom(atom, options, vis, 'vis', save_core_as_ne)
+        lpnc.save_view_atom(atom, options, vis, 'vis', save_neon_core)
 
     click.echo('-' * CEN)
 

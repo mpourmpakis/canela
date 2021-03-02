@@ -38,8 +38,8 @@ def ncs_dict():
                'au60s6_pmt36': {
                    'n_core': 20,
                    'n_shellint': 32,
-                   'motifs': {-7: 1, -6: 1, -3: 3,
-                              -2: 1, -1: 6, 8: 2}}}
+                   'motifs': {-1: 6, 1: 4, 2: 5, 3: 6, 4: 2}}
+               }
 
     for nc in all_ncs:
         with importlib.resources.path(canela.data, nc + '.xyz') as p:
@@ -59,7 +59,7 @@ def test_get_core_shell__ncs_match_correct_core_shell_info(ncs_dict):
 def test_count_motifs__ncs_match_correct_motif_counts(ncs_dict):
     for nc in ncs_dict:
         # calculate motif info
-        motifs = lpnc.count_motifs(ncs_dict[nc]['atoms'], full_cluster=True)
+        motifs = lpnc.count_motifs(ncs_dict[nc]['atoms'])
 
         # the same motif types are found (same dict keys)
         assert set(motifs) == set(ncs_dict[nc]['motifs'])
@@ -78,7 +78,7 @@ def test_coreshell__au25_shell_is_all_atoms_not_in_core(au25, au25cs_dets):
 
 def test_count_motifs__au25_shell_only_has_6_dimers(au25):
     # get motifs dict
-    motifs = lpnc.count_motifs(au25, full_cluster=True)
+    motifs = lpnc.count_motifs(au25)
 
     # au25 should have 6 dimers
     assert 2 in motifs
