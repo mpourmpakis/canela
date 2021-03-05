@@ -1,5 +1,6 @@
 import pytest
 import canela.lpnc as lpnc
+import canela.lpnc.utils as utils
 import canela.data
 import os
 import importlib.resources
@@ -90,14 +91,14 @@ def test_count_motifs__au25_shell_only_has_6_dimers(au25):
 
 
 def test_flatten_ls__flattens_iterable_of_vals_and_iterables():
-    assert lpnc.flatten_ls([1, 2, 'a', 4.4]) == [1, 2, 'a', 4.4]
-    assert lpnc.flatten_ls([[1], [2], [3], [4]]) == [1, 2, 3, 4]
-    assert lpnc.flatten_ls([0, [1, 2], [3, [4, 5, [6, 7]], 8], [9, 10, 11], 12]) == list(range(13))
+    assert utils.flatten_ls([1, 2, 'a', 4.4]) == [1, 2, 'a', 4.4]
+    assert utils.flatten_ls([[1], [2], [3], [4]]) == [1, 2, 3, 4]
+    assert utils.flatten_ls([0, [1, 2], [3, [4, 5, [6, 7]], 8], [9, 10, 11], 12]) == list(range(13))
 
 
 def test_flatten_ls__turns_nonlist_into_list():
-    assert lpnc.flatten_ls((1, 2, 3)) == [(1, 2, 3)]
-    assert lpnc.flatten_ls(10) == [10]
+    assert utils.flatten_ls((1, 2, 3)) == [(1, 2, 3)]
+    assert utils.flatten_ls(10) == [10]
 
 
 def test_get_bonds__find_all_methane_bonds():
