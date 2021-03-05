@@ -1,4 +1,5 @@
 from __future__ import division
+import canela.lpnc.utils as utils
 import sys
 import os
 import numpy as np
@@ -170,9 +171,8 @@ def get_core_shell(atom, neighbor_list=None, scale=SCALE, show=False):
                                                   bonds to shell
                                    }
     """
-    # if atom isn't ase object, assume it is a path to NC structure file
-    if not isinstance(atom, ase.Atoms):
-        atom = ase.io.read(atom)
+    # create atoms object from path or do nothing if already atoms object
+    atom = utils.make_atoms_obj(atom)
 
     # determine if NC has R group (check for C's and H's)
     hasr = (atom.numbers == 6).any() or (atom.numbers == 1).any()
@@ -327,9 +327,8 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
                              2: [dimer (S-M-S-M-S) indices],
                              ...etc}
     """
-
-    if isinstance(atom, str):
-        atom = ase.io.read(atom)
+    # create atoms object from path or do nothing if already atoms object
+    atom = utils.make_atoms_obj(atom)
 
     fc_atom = atom.copy()
 

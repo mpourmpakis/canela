@@ -1,4 +1,5 @@
 import canela.lpnc as lpnc
+import canela.lpnc.utils as utils
 from canela import __version__
 import click
 import sys
@@ -109,7 +110,7 @@ def ncsep(nc_path, save, scale, no_motifs, vis, save_neon_core):
 
             # create atoms object for each motif type
             # (flatten lists of lists of any size)
-            f = lpnc.flatten_ls(list(all_motifs[mot].flatten()))
+            f = utils.flatten_ls(list(all_motifs[mot].flatten()))
             options[name] = shell[f]
 
     # SAVE INFO
