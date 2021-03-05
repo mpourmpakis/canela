@@ -461,28 +461,19 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
     for m in all_motifs:
         all_motifs[m] = np.array(all_motifs[m])
 
+    # if show, print motif types and counts of dict in easy-to-read format
     if show:
-        print_motifs(all_motifs)
+        print('---- Motifs Info ----'.center(CEN))
+        for m in sorted(all_motifs):
+            if m == -1:
+                name = 'sulfido'
+            else:
+                name = MOTIFNAMES.get(abs(m), '%imer' % abs(m))
+                if m < -1:
+                    name += 'ic-ring'
+            print(name.rjust(VCEN) + ': %i' % (len(all_motifs[m])))
 
     return all_motifs
-
-
-def print_motifs(motifs_dict):
-    """prints motif types and counts of dict from count_motifs function
-
-    Arguments:
-        motifs_dict (dict): motifs dictionary returned from count_motifs
-                              function
-    """
-    print('---- Motifs Info ----'.center(CEN))
-    for m in sorted(motifs_dict):
-        if m == -1:
-            name = 'sulfido'
-        else:
-            name = MOTIFNAMES.get(abs(m), '%imer' % abs(m))
-            if m < -1:
-                name += 'ic-ring'
-        print(name.rjust(VCEN) + ': %i' % (len(motifs_dict[m])))
 
 
 def save_view_atom(baseatom, options, args, action='save', neon_core=False):
