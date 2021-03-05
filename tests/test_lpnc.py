@@ -70,13 +70,14 @@ def test_flatten_ls__turns_nonlist_into_list():
     assert utils.flatten_ls(10) == [10]
 
 
-def test_get_bonds__find_all_methane_bonds():
+def test_Bonds__find_all_methane_bonds():
     methane = molecule('CH4')
-    bonds = lpnc.get_bonds(methane)
-    assert bonds.tolist() == [[0, 1], [0, 2], [0, 3], [0, 4]]
+    bonds = lpnc.Bonds(methane)
+    assert bonds.bond_arr.tolist() == [[0, 1], [0, 2], [0, 3], [0, 4]]
 
 
 def test_get_bonds__0scale_return_empty_list():
     methane = molecule('CH4')
-    assert lpnc.get_bonds(methane, scale=0) == []
+    bonds = lpnc.Bonds(methane, scale=0)
+    assert bonds.bond_arr.tolist() == []
 

@@ -34,142 +34,123 @@ MOTIFNAMES = {0: 'bridging S', 1: 'monomer', 2: 'dimer', 3: 'trimer',
               8: 'octamer'}
 
 
-def build_neighborlist(atom, scale=SCALE):
-    """creates NeighborList object based on atom
+class Bonds(object):
+    def __init__(self, atoms, scale=1.0):
+        # create atoms object from path or do nothing if already atoms object
+        self.atoms = utils.make_atoms_obj(atoms)
 
-    Arguments:
-        atom (ase.Atoms): atoms object
+        self.scale = scale
 
-    Keyword Arguments:
-        scale (float): scales covalent radii of each atom
-                       (default: 1.0)
+        # radii array
+        self.radii = covalent_radii[self.atoms.numbers] * self.scale
 
-    Returns:
-        (NeighborList): ase neighborlist object that can calculate all
-                        neighbors of a given atom
-    """
-    radii = covalent_radii[atom.numbers] * scale
+        # create neighborlist
+        self.neighborlist = ase.neighborlist.NeighborList(
+                                    cutoffs=self.radii,
+                                    self_interaction=False)
+        self.neighborlist.update(self.atoms)
 
-    n = ase.neighborlist.NeighborList(
-            cutoffs=radii,
-            self_interaction=False)
-    n.update(atom)
-    return n
+        # array of i-j atoms involved in a bond
+        # shape = (n_bonds, 2)
+        self.bond_arr = None
 
+        # dict of atoms' 1st neighbors using a bond list
+        self.coord_dict = {a: set() for a in range(len(self.atoms))}
 
-def build_coord_dict(bonds):
-    """creates a dict of atoms' 1st neighbors using a bond list
+        # array of coordination numbers (CNs)
+        self.cns = None
 
-    Arguments:
-        bonds (np.ndarray | list): matrix of atom indices involved in bonds
+        # dynamically build half bond array if getter is called
+        self._halfbond_arr = None
 
-    Returns:
-        (dict): {atom_index: [1st neighbor indices]}
-    """
-    coords = {k: set() for k in np.unique(bonds)}
-    for i, j in bonds:
-        coords[i].add(j)
-        coords[j].add(i)
-    # convert value sets to sorted lists
-    return {k: sorted(v) for k, v in coords.items()}
+        # calculate bonding, coordination dict, and cns
+        self._get_bonds()
 
+    @property
+    def halfbond_arr(self):
+        """array of all halfbonds
+        - includes i-j and j-i in array
+        - shape = (2 * n_bonds, 2)
+        """
+        if self._halfbond_arr is None:
+            self._halfbond_arr = np.concatenate(
+                                    (self.bond_arr, self.bond_arr[:, ::-1]))
+        return self._halfbond_arr
 
-def flatten_ls(val, _tot=[]):
-    """flattens an arbitrary list of values (ints, floats, str, etc.) and lists
-    """
-    if not isinstance(val, list):
-        return _tot + [val]
-    else:
-        for i in val:
-            _tot = flatten_ls(i, _tot)
-        return _tot
+    def _get_bonds(self):
+        """finds bonds between atoms based on bonding radii
+    
+        Sets:
+        self.bond_arr (2d array of ints): [[bond-1-atom-1, bond-1-atom-2],
+                                          [bond-2-atom-1, bond-2-atom-2],
+                                          [bond-3-atom-1, bond-3-atom-2],
+                                           ...etc]
+        self.coord_dict (dict: list): {0: [2, 3, 4]}
 
+        self.cns (1d array of ints): [12, 12, 6, 6, etc]
+        """
+        # shorten to "n" for simplicity
+        n = self.neighborlist
+        bonds = np.zeros((n.nneighbors, 2), int)
+        spot1 = 0
+        for atomi in range(len(self.atoms)):
+            # get neighbors of atomi
+            neighs = n.get_neighbors(atomi)[0]
 
-def get_bonds(atom, scale=SCALE, neighbor_list=None,
-              return_neighbor_list=False):
-    """finds bonds between atoms based on bonding radii
+            # find second cutoff in matrix
+            spot2 = spot1 + len(neighs)
 
-    Arguments:
-        atom (ase.Atoms): atoms object
+            # add bonds to matrix
+            bonds[spot1:spot2, 0] = atomi
+            bonds[spot1:spot2, 1] = neighs
 
-    Keyword Arguments:
-        scale (float): scales covalent bonding radii of atoms
-                         (default: 1.0)
-        neighbor_list (NeighborList): a neighborlist that was already
-                                            built for atoms object
-                                            (default: {None})
-        return_neighbor_list (bool): if True, neighbor_list is returned with
-                                       bonds list
-                                       (default: False)
+            # add neighbors and atomi details to coord dict
+            self.coord_dict[atomi] |= set(neighs)
+            [self.coord_dict[n].add(atomi) for n in neighs]
 
-    Returns:
-        bonds (list of lists): [[bond-1-atom-1, bond-1-atom-2],
-                                [bond-2-atom-1, bond-2-atom-2],
-                                [bond-3-atom-1, bond-3-atom-2],
-                                     ...etc]
-        neighbor_list: if return_neighbor_list is True
-    """
-    if neighbor_list is None:
-        n = build_neighborlist(atom, scale=scale)
-    else:
-        n = neighbor_list
-        n.update(atom)
+            # shift down matrix
+            spot1 = spot2
 
-    if not n.nneighbors:
-        return []
+            # once all bonds have been found break loop
+            if spot1 == n.nneighbors:
+                break
 
-    bonds = np.zeros((n.nneighbors, 2), int)
-    spot1 = 0
-    for atomi in range(len(atom)):
-        # get neighbors of atomi
-        neighs = n.get_neighbors(atomi)[0]
+        # set bond list attribute
+        self.bond_arr = bonds
 
-        # find second cutoff in matrix
-        spot2 = spot1 + len(neighs)
+        # convert coord_dict values from sets to sorted lists
+        self.coord_dict = {k: sorted(v) for k, v in self.coord_dict.items()}
 
-        # add bonds to matrix
-        bonds[spot1:spot2, 0] = atomi
-        bonds[spot1:spot2, 1] = neighs
-
-        # shift down matrix
-        spot1 = spot2
-
-        # once all bonds have been found break loop
-        if spot1 == n.nneighbors:
-            break
-
-    if return_neighbor_list:
-        return bonds, n
-    else:
-        return bonds
+        # compute coordination numbers (CNs)
+        self.cns = np.bincount(bonds.flatten())
 
 
-def get_core_shell(atom, neighbor_list=None, scale=SCALE, show=False):
+def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
     """separates LPNC into core and shell based on "divide and protect" theory
 
     Arguments:
         atom (ase.Atoms): metal NC atoms object
 
     Keyword Arguments:
-        neighbor_list (NeighborList): ase NeighborList object for metal NC
-                                        (default: None)
+        bonds (Bonds): bond object containing all bond details
+                       (default: None: Bonds obj will be built)
         scale (float): scale covalent radii of each atom - for determining
-                         neighbors when no neighborlist is passed in
-                         (default: 1.0)
+                       bonds when no Bonds object is passed in
+                       (default: 1.0)
         show (bool): prints details of core and shell if True
-                       (defauls: False)
+                     (defauls: False)
 
     Returns:
         core shell info (dict): {core: core atom indices,
-                                   shell: shell atom indices,
-                                   sulfido: sulfido atom indices,
-                                   bridge: bridging S indices,
-                                   nshellint: num shell interactions,
-                                   corecnavg: avg CN of core atoms
-                                              (includes bonds to shell),
-                                   justcorecnavg: avg CN of core excluding
-                                                  bonds to shell
-                                   }
+                                 shell: shell atom indices,
+                                 sulfido: sulfido atom indices,
+                                 bridge: bridging S indices,
+                                 nshellint: num shell interactions,
+                                 corecnavg: avg CN of core atoms
+                                            (includes bonds to shell),
+                                 justcorecnavg: avg CN of core excluding
+                                                bonds to shell
+                                 }
     """
     # create atoms object from path or do nothing if already atoms object
     atom = utils.make_atoms_obj(atom)
@@ -178,14 +159,9 @@ def get_core_shell(atom, neighbor_list=None, scale=SCALE, show=False):
     hasr = (atom.numbers == 6).any() or (atom.numbers == 1).any()
 
     # calculate bonds list (and neighborlist if necessary)
-    if neighbor_list is None:
-        bonds, neighbor_list = get_bonds(atom, scale=scale,
-                                         return_neighbor_list=True)
-    else:
-        bonds = get_bonds(atom, neighbor_list=neighbor_list)
-
-    # create coord dict
-    coords = build_coord_dict(bonds)
+    # create Bonds object if not given
+    if bonds is None:
+        bonds = Bonds(atom, scale=scale)
 
     # first, find sulfido atoms (if any)
     sulfido = []
@@ -195,7 +171,7 @@ def get_core_shell(atom, neighbor_list=None, scale=SCALE, show=False):
         # iterate over sulfur atoms
         for s in np.where(atom.symbols == 'S')[0]:
             # get indices of neighbors
-            bonded_to = coords[s]
+            bonded_to = bonds.coord_dict[s]
 
             # count number of metal neighbors
             mets = sum(a.symbol in METALS for a in atom[bonded_to])
@@ -207,48 +183,48 @@ def get_core_shell(atom, neighbor_list=None, scale=SCALE, show=False):
     # initialize list of core atom indices
     core = []
 
-    # calc avg CN of core atoms
-    corecnavg = 0
     for a in atom:
         if a.symbol in METALS:
             # find S neighbors that aren't already in core
-            neighs = coords[a.index]
+            neighs = bonds.coord_dict[a.index]
             s_neighs = sum(atom[neighs].symbols == 'S')
 
             # less than two S neighbors = core atom
             if s_neighs < 2:
-                # add CN
-                cn = len(neighs)
-                corecnavg += cn
-
                 # add index to list of core atoms
                 core.append(a.index)
 
     # get shell atoms
     shell = np.array(list(set(range(len(atom))) - set(core)))
 
+    # get core CN avg
+    corecnavg = 0
+
     # get core CN avg excluding core-shell bonds
     justcorecnavg = 0
 
+    # get number of shell-core interactions
+    nshellint = 0
+
     # only make these calcs if there is a core
     if len(core):
-        # get core CN avg excluding core-shell bonds
-        b = get_bonds(atom[core])
-        justcorecnavg = np.bincount(b.flatten()).mean()
+        # calc avg CN of core atoms
+        corecnavg = bonds.cns[core].mean()
 
-        # get avg core CN
-        corecnavg /= len(core)
+        # calc core CN avg excluding core-shell bonds
+        core_set = set(core)
+        justcore_cns = map(len, (set(bonds.coord_dict[c]) & core_set
+                                 for c in core))
+        justcorecnavg = np.mean(list(justcore_cns))
 
-        # calculate min shell-to-core distance for Au shell atoms
+        # calculate min shell-to-core distance for M shell atoms
         metal_shell = [sh for sh in shell if atom[sh].symbol in METALS]
 
         all_dists = atom.get_all_distances()
         dists = all_dists[np.vstack(metal_shell), core].min(1)
 
-        # add Au atoms to nshellint if their distance is < 5 to core
+        # add M atoms to nshellint if their distance is < 5 to core
         nshellint = sum(dists < 5)
-    else:
-        nshellint = 0
 
     # find bridging motifs
     # if no R group, bridging S will have no bonds
@@ -256,7 +232,7 @@ def get_core_shell(atom, neighbor_list=None, scale=SCALE, show=False):
     match = int(hasr)
 
     # create matrix only containing shell bonds
-    shell_bonds = bonds[np.isin(bonds, shell).all(1)]
+    shell_bonds = bonds.bond_arr[np.isin(bonds.bond_arr, shell).all(1)]
 
     # find bridging S's by matching <match> CN
     s_shell = shell[atom[shell].numbers == 16]
@@ -377,11 +353,8 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
     if len(sulfido):
         all_motifs[-1] = sulfido
 
-    # get bonds list
-    bonds = get_bonds(ms, scale=scale)
-
-    # create coordination dict
-    coords = build_coord_dict(bonds)
+    # create Bonds object
+    bonds = Bonds(ms, scale=scale)
 
     # S-M-S-M-...-S motif building"""
     ms_i = set(range(len(ms))) - set(ms_sulfido)
@@ -404,7 +377,7 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
             if ends_found[last]:
                 continue
 
-            bonded_to = coords.get(i, [])
+            bonded_to = bonds.coord_dict.get(i, [])
             for b in bonded_to:
                 # only look at new atoms
                 if b in used:
