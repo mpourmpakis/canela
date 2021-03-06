@@ -346,13 +346,17 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
 
     # get mapped sulfido atoms (if none, set to empty list)
     ms_sulfido = []
+    temp_ms_sulfido = None
+    sulfido_counts = {}
     if len(sulfido):
         ms_sulfido = np.where(np.vstack(sulfido) == mapping_i)[1]
 
-    # add sulfido atoms to motifs (if any)
-    if len(sulfido):
-        all_motifs[-1] = sulfido
+        # track use of sulfidos in motifs (3 uses per sulfido atom)
+        sulfido_counts = {s: 0 for s in ms_sulfido}
 
+        # add sulfido atoms to motifs (if any)
+        all_motifs[-1] = sulfido
+    
     # create Bonds object
     bonds = Bonds(ms, scale=scale)
 
@@ -369,9 +373,23 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
             # if no M S atoms left, terminate loop (all motifs found)
             if not len(ms_i):
                 break
-            i = ms_i.pop()
+
+            # use sulfidos first (each sulfido should be involved in
+            # three different motifs)
+            for i in sulfido_counts:
+                if sulfido_counts[i] < 3:
+                    # if starting with a sulfido, we've already
+                    # found the starting end
+                    ends_found[0] = 1
+                    break
+
+            # if no sulfidos or no sulfido uses left, start from a random atom
+            else:
+                i = ms_i.pop()
+                used.add(i)
+
+            # initialize new motif with atom i
             motif = [i]
-            used.add(i)
 
         for i, last in zip([motif[-1], motif[0]], [1, 0]):
             if ends_found[last]:
@@ -380,7 +398,7 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
             bonded_to = bonds.coord_dict.get(i, [])
             for b in bonded_to:
                 # only look at new atoms
-                if b in used:
+                if b in used or b in motif:
                     continue
 
                 # find next link in motif
@@ -401,7 +419,15 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
                 ends_found[last] = 1
 
         # once both motif ends found, add it to all_motifs
-        if sum(ends_found) == 2:
+        if all(ends_found):
+            assert len(set(motif)) == len(motif)
+
+            # increment sulfido usage
+            if len(ms_sulfido):
+                for m in motif:
+                    if m in sulfido_counts:
+                        sulfido_counts[m] += 1
+
             # use number of atoms in motif to determine integer name (mtype)
             # S-M-S-M-S: 5 atoms // 2 = 2: dimer
             mtype = len(motif) // 2
@@ -430,6 +456,7 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
     else:
         raise ValueError(f"Motif algorithm exceeded {max_iter:,} iterations.")
 
+    # convert motifs to arrays
     for m in all_motifs:
         all_motifs[m] = np.array(all_motifs[m])
 
