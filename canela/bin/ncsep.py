@@ -38,13 +38,12 @@ MOTIFNAMES = ['bridging S', 'monomer', 'dimer', 'trimer', 'tetramer',
               ' saves core and shell files')
 @click.option('--scale', type=float, default=1.0, metavar='<f>',
               help='bond distance = covalent_radii x scale')
-@click.option('--no-motifs', is_flag=True, help="don't print motif info on nc")
 @click.option('-v', '--vis', type=str, metavar='<section>', multiple=True,
               help='can visualize core, shell, ligands, motifs, and/or nc' +
                    '\n visualizes core as Ne and sulfidos as P')
 @click.option('--save-neon-core', is_flag=True,
               help='saves core atoms as Ne atoms')
-def ncsep(nc_path, save, scale, no_motifs, vis, save_neon_core):
+def ncsep(nc_path, save, scale, vis, save_neon_core):
     """Dissects LPNC structure to determine: core, shell, ligands, and motifs
 
     nc_path: path to nc geometry file (.xyz, .pdb, etc.)
@@ -71,15 +70,14 @@ def ncsep(nc_path, save, scale, no_motifs, vis, save_neon_core):
         shell.info['nsulfido'] = len(info['sulfido'])
 
     # MOTIF INFO
-    if not no_motifs:
-        # need to map sulfidos to shell indices
-        map_s0 = info['sulfido']
-        if info['sulfido']:
-            map_s0 = np.where(np.vstack(info['sulfido']) == info['shell'])[1]
+    # need to map sulfidos to shell indices
+    map_s0 = info['sulfido']
+    if info['sulfido']:
+        map_s0 = np.where(np.vstack(info['sulfido']) == info['shell'])[1]
 
-        # get motif info dict
-        all_motifs = lpnc.count_motifs(shell, scale=scale, show=True,
-                                       sulfido=map_s0)
+    # get motif info dict
+    all_motifs = lpnc.count_motifs(shell, scale=scale, show=True,
+                                   sulfido=map_s0)
 
     # create options dict for saving and visualizing
     options = {'nc': atom,
@@ -96,22 +94,21 @@ def ncsep(nc_path, save, scale, no_motifs, vis, save_neon_core):
         options.pop('core')
 
     # add specific motifs found to visualization options
-    if not no_motifs:
-        # atoms object that motif indices are mapped to
-        for mot in all_motifs:
-            if mot == -1:
-                name = 'sulfido'
-            elif mot == 0:
-                name = 'bridge'
-            elif mot < -1:
-                name = MOTIFNAMES[-mot] + 'ic-ring'
-            else:
-                name = MOTIFNAMES[mot]
+    # atoms object that motif indices are mapped to
+    for mot in all_motifs:
+        if mot == -1:
+            name = 'sulfido'
+        elif mot == 0:
+            name = 'bridge'
+        elif mot < -1:
+            name = MOTIFNAMES[-mot] + 'ic-ring'
+        else:
+            name = MOTIFNAMES[mot]
 
-            # create atoms object for each motif type
-            # (flatten lists of lists of any size)
-            f = utils.flatten_ls(list(all_motifs[mot].flatten()))
-            options[name] = shell[f]
+        # create atoms object for each motif type
+        # (flatten lists of lists of any size)
+        f = utils.flatten_ls(list(all_motifs[mot].flatten()))
+        options[name] = shell[f]
 
     # SAVE INFO
     if save:
