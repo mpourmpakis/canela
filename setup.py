@@ -27,7 +27,7 @@ setuptools.setup(
     exclude_package_data={'': ['README.md']},
     python_requires='>=3.5',
     install_requires=['ase~=3.20',
-                      'click~=7.1',
-                      'dscribe~= 0.4'],
+                      'click~=7.1'],
+                      #'dscribe~= 0.4'],
     tests_require=['pytest~=6.0'])
 
