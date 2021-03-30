@@ -2,6 +2,7 @@ from canela import __version__
 import sys
 import os
 import shutil
+import subprocess
 from subprocess import PIPE, Popen
 import argparse
 import ase.io
