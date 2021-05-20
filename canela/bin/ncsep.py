@@ -36,7 +36,7 @@ MOTIFNAMES = ['bridging S', 'monomer', 'dimer', 'trimer', 'tetramer',
 @click.option('-s', '--save', type=str, metavar='<s>', multiple=True,
               help='saves .xyz files based on arg passed in - "cs":'
               ' saves core and shell files')
-@click.option('--scale', type=float, default=1.0, metavar='<f>',
+@click.option('--scale', type=float, default=1.1, metavar='<f>',
               help='bond distance = covalent_radii x scale')
 @click.option('-v', '--vis', type=str, metavar='<section>', multiple=True,
               help='can visualize core, shell, ligands, motifs, and/or nc' +
@@ -114,13 +114,82 @@ def ncsep(nc_path, save, scale, vis, save_neon_core):
     if save:
         click.echo('')
         click.echo('---- Saving XYZs ----'.center(CEN))
-        lpnc.save_view_atom(atom, options, save, 'save', save_neon_core)
+        save_view_atom(atom, options, save, 'save', save_neon_core)
 
     # VIS INFO
     if vis:
         click.echo('')
         click.echo('----- Vis. Info -----'.center(CEN))
-        lpnc.save_view_atom(atom, options, vis, 'vis', save_neon_core)
+        save_view_atom(atom, options, vis, 'vis', save_neon_core)
 
     click.echo('-' * CEN)
 
+
+def save_view_atom(baseatom, options, args, action='save', neon_core=False):
+    """creates atom object of args passed in and saves or visualizes it
+
+    Arguments:
+        baseatom (ase.Atoms): full atoms object to take
+        options (dict): sections of atoms object that can be pieced together
+                          to make temp atom
+        args (list): list of args that should match options keys to make
+                       temp atom
+
+    Keyword Arguments:
+        action (str): either save or vis temp atom
+                        (default: 'save')
+        neon_core (bool): convert core metal atoms to Ne
+                          (default: True)
+    """
+    # build atoms object based on args
+    showme = []
+    for arg in args:
+        arg = arg.lower()
+        if arg in options:
+            add = options[arg]
+            if arg == 'core' and (action == 'vis' or neon_core):
+                for a in add:
+                    if a.symbol in METALS:
+                        a.symbol = 'Ne'
+
+            showme += list(add)
+        else:
+            # quit if incorrect option given
+            print('ERROR'.center(CEN))
+            cant = 'cannot %s "%s"' % (action, arg)
+            print(cant.center(CEN))
+            title = '%s OPTIONS:' % action.upper()
+            print(title.center(CEN))
+            for o in options:
+                print(o.center(CEN))
+            return
+
+    # remove duplicate atoms
+    compare = set()
+    final = []
+    for s in showme:
+        # remove duplicate atoms (based on symbol in position)
+        a_id = (s.symbol, s.x, s.y, s.z)
+        if a_id not in compare:
+            final.append(s)
+            compare.add(a_id)
+
+    final = ase.Atoms(final)
+
+    name = '-'.join(map(str.lower, args))
+
+    # save/view atoms obj based on action
+    if action == 'save':
+        final.write(name + '.xyz')
+    elif action == 'vis':
+        # if sulfidos are present, convert them to P before visualizing
+        if 'sulfido' in options:
+            sulf_tags = options['sulfido'].get_tags()
+            s0_i = np.where(np.vstack(sulf_tags) == final.get_tags())[1]
+            final.symbols[s0_i] = 'P'
+
+        ase.visualize.view(final)
+
+    # successful action is printed to output
+    outp = '%s: %s' % (action, name.replace('-', ', '))
+    print(outp.center(CEN))
