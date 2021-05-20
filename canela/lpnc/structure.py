@@ -12,7 +12,7 @@ import ase.visualize
 
 
 # default bonding scale (SCALE * covalent_radii)
-SCALE = 1.0
+SCALE = 1.1
 
 # center output
 CEN = 40
@@ -35,7 +35,21 @@ MOTIFNAMES = {0: 'bridging S', 1: 'monomer', 2: 'dimer', 3: 'trimer',
 
 
 class Bonds(object):
-    def __init__(self, atoms, scale=1.0):
+    """get all bond information about molecular system
+
+    Attributes:
+
+    Arguments:
+    atoms (ase.Atoms | str): atoms object or path to molecule
+
+    Keyword Arguments:
+    scale (float): scales the bonding criteria
+                   - bonding is determined by:
+                   (covalent_radii * scale)
+                   (DEFAULT: 1.1)
+
+    """
+    def __init__(self, atoms, scale=SCALE):
         # create atoms object from path or do nothing if already atoms object
         self.atoms = utils.make_atoms_obj(atoms)
 
@@ -47,6 +61,7 @@ class Bonds(object):
         # create neighborlist
         self.neighborlist = ase.neighborlist.NeighborList(
                                     cutoffs=self.radii,
+                                    skin=0,
                                     self_interaction=False)
         self.neighborlist.update(self.atoms)
 
@@ -123,6 +138,144 @@ class Bonds(object):
 
         # compute coordination numbers (CNs)
         self.cns = np.bincount(bonds.flatten())
+
+
+class LPNC(object):
+    """dissect structure of ligand-protected metal nanocluster (LPNC)
+    - divide-and-protect theory to distinguish core and shell atoms
+    - get all shell motif information, including motif types and counts
+    - get atom ids, which contains fine details on its structural properties
+        - core atom layer (surface, etc.)
+        - shell atom's motif type and position (end S vs. middle S in motif)
+
+    Arguments:
+        atoms (ase.Atoms | str): LPNC atoms object or path to geometry file
+
+    Keyward Arguments:
+        scale (float): scale covalent radii of each atom - for determining
+                       bonds when no Bonds object is passed in
+
+    Attributes:
+    atoms (ase.Atoms): LPNC atoms object
+    info (dict): {'core': core atom indices, 'shell': shell atom indices, ...}
+    core (ase.Atoms): atoms object containing LPNC core atoms
+    shell (ase.Atoms): atoms object containing LPNC shell atoms
+    ligands (list[ase.Atoms]): list of each ligand as an ase.Atoms object
+    motifs (dict): {motif type: np.ndarray(motif indices)}
+    ids (np.ndarray[str]): atom ids
+
+    """
+    def __init__(self, atoms, scale=SCALE):
+        # create atoms object from path or do nothing if already atoms object
+        self.atoms = utils.make_atoms_obj(atoms)
+        self.atoms = self.atoms.copy()
+
+        # set tag indices to atoms object
+        # that way, any new atoms objects will have a mapping index
+        # back to original atoms object
+        self.atoms.set_tags(range(len(self.atoms)))
+
+        self.scale = scale
+        self.bonds = Bonds(self.atoms, self.scale)
+
+        self.info = get_core_shell(self.atoms, bonds=self.bonds)
+
+        # create core and shell atoms objects
+        self.core = self.atoms[self.info['core']]
+        self.shell = self.atoms[self.info['shell']]
+
+        # get number of metal atoms, number of sulfur atoms
+        self.n_m = np.isin(self.atoms.symbols, list(METALS)).sum()
+        self.n_s = sum(self.atoms.symbols == 'S')
+
+
+        # number of core atoms
+        self.n_core = len(self.core)
+
+        # get average core CN
+        self.core_cn_avg = self.info['corecnavg']
+        self.just_core_cn_avg = self.info['justcorecnavg']
+
+        # create ase.Atoms objects of each ligand
+        self.ligands = None
+        self._get_ligands()
+
+        # get number of sulfido atoms
+        self.n_sulfido = len(self.info['sulfido'])
+
+        # calculate number of ligands
+        self.n_ligand = self.n_s - self.n_sulfido
+
+        # get number of C and H per ligand
+        self.n_c_per_lig = sum(self.atoms.symbols == 'C') / self.n_ligand
+        self.n_h_per_lig = sum(self.atoms.symbols == 'H') / self.n_ligand
+
+        # get motif details
+        self.motifs = None
+        self._get_motifs()
+
+        # get atom structural ids
+        self.ids = id_atoms(self.atoms, self.info, self.motifs, self.scale)
+
+        # feature vector (fingerprint, fp)
+        # n metals, n sulfurs, n core atoms, average CN of core atoms
+        self.fp = [self.n_m, self.n_s, self.n_core, self.core_cn_avg]
+
+        # add number of C and H per ligand to fingerprint
+        self.fp += [self.n_c_per_lig, self.n_h_per_lig]
+
+        # add motif counts to fingerprint
+        # n sulfido, n bridge, n monomer, n dimer, n trimer,
+        self.fp += [len(list(self.motifs.get(i, []))) for i in range(-2, 4)]
+
+        # convert fingerprint to array
+        self.fp = np.array(self.fp)
+
+    def __len__(self):
+        return len(self.atoms)
+
+    def __repr__(self):
+        return self.atoms.get_chemical_formula('metal')
+
+    def _get_ligands(self):
+        self.ligands = []
+        # find all ligand atoms (atoms that are NOT metals)
+        all_ligands = self.atoms[np.isin(self.atoms.symbols,
+                                         list(METALS), invert=True)]
+        all_inds = set(range(len(all_ligands)))
+        lig_bonds = Bonds(all_ligands, self.scale)
+        for s in np.where(all_ligands.symbols == 'S')[0]:
+            lig = {s}
+
+            for _ in range(1000):
+                last = lig.copy()
+                for i in last:
+                    lig |= set(lig_bonds.coord_dict[i])
+                if len(lig) == len(last):
+                    self.ligands.append(all_ligands[list(lig)])
+                    all_inds -= lig
+                    break
+            else:
+                raise ValueError("Unable to correctly make ligands")
+
+        if all_inds:
+            raise ValueError("Leftover atoms when trying to make ligands")
+
+            self.ligands.append(all_ligands[list(lig)])
+
+    def _get_motifs(self):
+        shelli = np.array(self.info['shell'])
+
+        map_s0 = []
+        if self.info['sulfido']:
+            map_s0 = np.where(np.vstack(self.info['sulfido']) == shelli)[1]
+
+        # only pass in shell atoms to avoid running get_core_shell again
+        shell_motifs = count_motifs(self.shell, scale=self.scale,
+                                    sulfido=map_s0)
+
+        # map shell_motif indices back to original atoms object indices
+        self.motifs = {k: shelli[v] for k, v in shell_motifs.items()}
 
 
 def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
@@ -314,7 +467,6 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
     # values: lists of Au and S indices for motif
     all_motifs = {}
 
-
     # determine if atoms object is full NC or just shell
     # if # metal >= # S, it must be the full NC
     ns = nm = 0
@@ -355,8 +507,8 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
         sulfido_counts = {s: 0 for s in ms_sulfido}
 
         # add sulfido atoms to motifs (if any)
-        all_motifs[-1] = sulfido
-    
+        all_motifs[-1] = np.vstack(sulfido)
+
     # create Bonds object
     bonds = Bonds(ms, scale=scale)
 
@@ -413,7 +565,7 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
                         ms_i.remove(b)
                     else:
                         ends_found[last] = 1
-    
+
                     break
             else:
                 ends_found[last] = 1
@@ -462,87 +614,177 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
 
     # if show, print motif types and counts of dict in easy-to-read format
     if show:
-        print('---- Motifs Info ----'.center(CEN))
-        for m in sorted(all_motifs):
-            if m == -1:
-                name = 'sulfido'
-            else:
-                name = MOTIFNAMES.get(abs(m), '%imer' % abs(m))
-                if m < -1:
-                    name += 'ic-ring'
-            print(name.rjust(VCEN) + ': %i' % (len(all_motifs[m])))
+        print_motifs(all_motifs)
 
     return all_motifs
 
 
-def save_view_atom(baseatom, options, args, action='save', neon_core=False):
-    """creates atom object of args passed in and saves or visualizes it
+def get_motif_name(mot_id):
+    """convert motif id number to motif name
 
     Arguments:
-        baseatom (ase.Atoms): full atoms object to take
-        options (dict): sections of atoms object that can be pieced together
-                          to make temp atom
-        args (list): list of args that should match options keys to make
-                       temp atom
-
-    Keyword Arguments:
-        action (str): either save or vis temp atom
-                        (default: 'save')
-        neon_core (bool): convert core metal atoms to Ne
-                          (default: True)
+    mot_id (int): id of specific motif types
+                  1: monomer, 2: dimer, 3...
+                  -8: octomeric ring, -6 hexameric ring...
+                  -1: sulfido atom, 0: bridging thiolate
+    Returns
+    (str): motif name
     """
-    # if visualizing sulfidos, convert them to P
-    # build atoms object based on args
-    showme = []
-    for arg in args:
-        arg = arg.lower()
-        if arg in options:
-            add = options[arg]
-            if arg == 'core' and (action == 'vis' or neon_core):
-                for a in add:
-                    if a.symbol in METALS:
-                        a.symbol = 'Ne'
+    if mot_id == -1:
+        name = 'sulfido'
+    else:
+        name = MOTIFNAMES.get(abs(mot_id), '%imer' % abs(mot_id))
+    if mot_id < -1:
+        name += 'ic-ring'
 
-            showme += list(add)
-        else:
-            # quit if incorrect option given
-            print('ERROR'.center(CEN))
-            cant = 'cannot %s "%s"' % (action, arg)
-            print(cant.center(CEN))
-            title = '%s OPTIONS:' % action.upper()
-            print(title.center(CEN))
-            for o in options:
-                print(o.center(CEN))
-            return
+    return name
 
-    # remove duplicate atoms
-    compare = set()
-    final = []
-    for s in showme:
-        # remove duplicate atoms (based on symbol in position)
-        a_id = (s.symbol, s.x, s.y, s.z)
-        if a_id not in compare:
-            final.append(s)
-            compare.add(a_id)
 
-    final = ase.Atoms(final)
-    name = '-'.join(map(str.lower, args))
+def id_atoms(atoms, cs_details=None, motifs=None, scale=SCALE):
+    """encode structural type of each atom in LPNC
+    - (C[core] | S[shell], ...
+    - For core:
+        - (C, S[surface of core] | B[bulk], int[core layer])
+        - core layer = 0[center], 1[layer 1], ..., n[surface]
+    - For shell:
+        - (S, R[R group of ligand])
+        - (S, M[metal] | S[sulfur] , int[motif type], E[end] | M[middle])
+        - end = sulfur atom that terminates a motif (at least one bond to core)
 
-    # save/view atoms obj based on action
-    if action == 'save':
-        final.write(name + '.xyz')
-    elif action == 'vis':
-        # if sulfidos are present, convert them to P before visualizing
-        if 'sulfido' in options:
-            sulf_tags = options['sulfido'].get_tags()
-            s0_i = np.where(np.vstack(sulf_tags) == final.get_tags())[1]
-            final.symbols[s0_i] = 'P'
+    Returns:
+    (np.ndarray): 1D array of atom id's ordered by atoms object indices
+    """
+    # initialize id dict
+    ids = {}
 
-        ase.visualize.view(final)
+    # set tags of atoms to match indices of original atoms object
+    # NOTE: tags remain with each atom even when creating new atoms objects
+    atoms.set_tags(range(len(atoms)))
 
-    # successful action is printed to output
-    outp = '%s: %s' % (action, name.replace('-', ', '))
-    print(outp.center(CEN))
+    # get Bonds object
+    bonds = Bonds(atoms, scale=scale)
+
+    # get core shell details dict
+    if cs_details is None:
+        cs_details = get_core_shell(atoms, bonds=bonds)
+
+    # DEFINE CORE IDs
+    # use iterative apprach to find each core layer
+    core_atoms = set(cs_details['core'])
+    toremove = set()
+    layers = {}
+    layer = 0
+    for _ in range(1000):
+        if not core_atoms:
+            break
+        for c in core_atoms:
+            # if c is not bonded to all other core atoms,
+            # it is in the current layer
+            if not all(i in core_atoms for i in bonds.coord_dict[c]):
+                layers[layer] = layers.get(layer, []) + [c]
+                toremove.add(c)
+        # remove all atoms found in current layer and shift one layer down
+        layer -= 1
+        core_atoms -= toremove
+        toremove = set()
+    else:
+        raise ValueError("Unable to identify core atom layers")
+
+    # add back to layer count such that
+    # 0: central core atom(s)
+    # 1: layer 1
+    # <toadd>: surface of core
+    # final id: C_(B|S)_<layer number>_x
+    toadd = abs(min(layers))
+    for key in layers:
+        bc = 'B' if key != 0 else 'S'
+        for c in layers[key]:
+            ids[c] = f'C_{bc}_{key+toadd:02d}_{atoms[c].symbol:x>2}'
+
+    # create array of shell atom indices
+    shell = np.array(cs_details['shell'])
+
+    # DEFINE LIGAND IDs (R groups)
+    r_group = shell[~np.isin(atoms[shell].symbols, list(METALS) + ['S'])]
+    for r in r_group:
+        ids[r] = 'S_R_xx_xx'
+
+    # get motifs dict
+    if motifs is None:
+        map_s0 = []
+        if cs_details['sulfido']:
+            map_s0 = np.where(np.vstack(cs_details['sulfido']) == shell)[1]
+
+        # only pass in shell atoms to avoid running get_core_shell again
+        shell_motifs = count_motifs(atoms[shell], scale=scale, sulfido=map_s0)
+
+        # map shell_motif indices back to original atoms object indices
+        motifs = {k: shell[v] for k, v in shell_motifs.items()}
+
+    # DEFINE SHELL MOTIF IDs
+    for mtype in motifs:
+        mtype_str = f'{mtype:02d}'
+
+        for mot in motifs[mtype]:
+            names = np.array(['x_x_xx_xx'] * len(mot))
+            # handle rings
+            if mtype < -1:
+                inds = np.arange(len(names))
+                if atoms[mot[0]].symbol in METALS:
+                    mets = inds[::2]
+                    sulf = inds[1::2]
+                else:
+                    mets = inds[1::2]
+                    sulf = inds[::2]
+                # define sulfur ids
+                names[sulf] = f'S_S_{mtype_str}_xM'
+
+                for m in mets:
+                    sym = atoms[mot[m]].symbol
+                    names[m] = f'S_M_{mtype_str}_{sym:x>2}'
+
+            # handle bridge and sulfido S's
+            elif mtype < 1:
+                names[:] = f'S_S_{mtype_str}_xE'
+
+            # handle all other "typical" motifs
+            else:
+                # define end and middle S's
+                names[0] = f'S_S_{mtype_str}_xE'
+                names[2:-1:2] = f'S_S_{mtype_str}_xM'
+                names[-1] = f'S_S_{mtype_str}_xE'
+
+                # define M's
+                for i in range(1, len(names), 2):
+                    sym = atoms[mot[i]].symbol
+                    names[i] = f'S_M_{mtype_str}_{sym:x>2}'
+
+            for i in range(len(names)):
+                # make sure it isn't already filled in
+                # this will avoid overwriting sulfido ids
+                if mot[i] not in ids:
+                    ids[mot[i]] = names[i]
+
+    id_arr = np.array([ids[i] for i in sorted(ids)])
+
+    if len(id_arr) != len(atoms):
+        raise ValueError("unable to map to all atoms in LPNC")
+
+    return id_arr
+
+
+def make_nc_fingerprint(atoms):
+    """
+    [n_m, n_s, n_core, core_cn]
+    """
+    lpnc = LPNC(atoms)
+
+
+def print_motifs(motifs):
+    print('---- Motifs Info ----'.center(CEN))
+    for m in sorted(motifs):
+        name = get_motif_name(m)
+        print(name.rjust(VCEN) + ': %i' % (len(motifs[m])))
 
 
 def summ_nc_dir(dirpath, scale=SCALE):
@@ -570,4 +812,3 @@ def summ_nc_dir(dirpath, scale=SCALE):
                                   show=True,
                                   sulfido=info['sulfido'])
         print('-' * CEN)
-
