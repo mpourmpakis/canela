@@ -19,7 +19,7 @@ setuptools.setup(
     description="CANELa tools to setup, track, and analyze comp chem calcs",
     long_description=description,
     long_description_content_type='text/markdown',
-    packages=['canela'],
+    packages=setuptools.find_packages(exclude=['tests']),
     entry_points={'console_scripts': ['ncsep=canela.bin.ncsep:ncsep',
                                       'sj_tmole=canela.bin.sj_tmole:main',
                                       'thermo=canela.bin.thermochem:thermo',
