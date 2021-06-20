@@ -22,6 +22,7 @@ setuptools.setup(
     packages=['canela'],
     entry_points={'console_scripts': ['ncsep=canela.bin.ncsep:ncsep',
                                       'sj_tmole=canela.bin.sj_tmole:main',
+                                      'thermo=canela.bin.thermochem:thermo',
                                       'soap=canela.bin.soap:create_soap']},
     include_package_data=True,  # include data files
     exclude_package_data={'': ['README.md']},
