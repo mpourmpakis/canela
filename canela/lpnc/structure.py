@@ -94,7 +94,7 @@ class Bonds(object):
 
     def _get_bonds(self):
         """finds bonds between atoms based on bonding radii
-    
+
         Sets:
         self.bond_arr (2d array of ints): [[bond-1-atom-1, bond-1-atom-2],
                                           [bond-2-atom-1, bond-2-atom-2],
@@ -187,7 +187,6 @@ class LPNC(object):
         # get number of metal atoms, number of sulfur atoms
         self.n_m = np.isin(self.atoms.symbols, list(METALS)).sum()
         self.n_s = sum(self.atoms.symbols == 'S')
-
 
         # number of core atoms
         self.n_core = len(self.core)
@@ -433,7 +432,7 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
 
 
 def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
-    """algorithmically determine motif types and counts of metal NC
+    """algorithmically determine motif types and counts of LPNC
 
     Arguments:
         atom (ase.Atoms): metal NC atoms object
@@ -788,7 +787,8 @@ def print_motifs(motifs):
 
 
 def summ_nc_dir(dirpath, scale=SCALE):
-    """calculates core shell info and motifs of all XYZ files in a given directory
+    """calculates core shell info and motifs of all XYZ files in
+    a given directory
 
     Arguments:
         dirpath (str): path to a directory containing NC .xyz files
