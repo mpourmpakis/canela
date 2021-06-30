@@ -772,13 +772,6 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     return id_arr
 
 
-def make_nc_fingerprint(atoms):
-    """
-    [n_m, n_s, n_core, core_cn]
-    """
-    lpnc = LPNC(atoms)
-
-
 def print_motifs(motifs):
     print('---- Motifs Info ----'.center(CEN))
     for m in sorted(motifs):
