@@ -1,7 +1,7 @@
 from __future__ import division
-import canela.lpnc.utils as utils
-import sys
 import os
+from collections import defaultdict
+from typing import Union
 import numpy as np
 import ase
 import ase.io
@@ -9,6 +9,7 @@ import ase.neighborlist
 from ase.data import covalent_radii
 from ase.data import chemical_symbols
 import ase.visualize
+import canela.lpnc.utils as utils
 
 
 # default bonding scale (SCALE * covalent_radii)
@@ -770,6 +771,63 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
         raise ValueError("unable to map to all atoms in LPNC")
 
     return id_arr
+
+
+def get_atom_id_latex_name(atom_id: str) -> str:
+    """create a latex-based label for an atom ID
+    - used in the bond distance analysis figure
+
+    Ex)
+    C_B_00_Au --> Au_{core}^{b00}
+    C_S_02_Ag --> Ag_{core}^{s02}
+    S_M_02_Au --> Au_{dimer}
+    S_S_-1_xx --> S_{sulfido}
+    S_S_01_xE --> S_{monomer}^{E}
+
+    See <get_atom_ids> for details on atom_id string
+    """
+    # strip any x placeholder values
+    atom_id = [i.strip('x') for i in atom_id.split('_')]
+
+    # Handle core atoms
+    if atom_id[0] == 'C':
+        name = '$\\rm %s_{core}^{%s%s}$' % (atom_id[-1],
+                                            atom_id[1].lower(),
+                                            atom_id[2])
+    # Handle shell atoms
+    else:
+        el = atom_id[1] if atom_id[1] == 'S' else atom_id[-1]
+        # define element; S or metal
+        mot = get_motif_name(int(atom_id[2]))
+        name = '$\\rm %s_{%s}' % (el, mot[:4])
+        name = '$\\rm %s_{%s}' % (el, mot)
+        if atom_id[3] in {'M', 'E'}:
+            name += '^{%s}' % (atom_id[3])
+        name += '$'
+    return name
+
+
+def get_bond_distance_analysis(atoms: Union[ase.Atoms, str],
+                               scale=SCALE) -> dict:
+    # create LPNC object
+    mync = LPNC(atoms, scale=scale)
+
+    # get all interatomic distances
+    dists = mync.atoms.get_all_distances()
+
+    # create a dict of bond_distances organized by atom_id type
+    bond_dists = {s: defaultdict(list)
+                  for s in mync.ids[mync.ids != 'S_R_x_x']}
+
+    # only start from M's and S's
+    for i in np.where(mync.atoms.numbers >= 16)[0]:
+        id0 = mync.ids[i]
+        # iterate over all j atoms that bonds to atom i
+        for j in mync.bonds.coord_dict[i]:
+            id1 = mync.ids[j]
+            bond_dists[id0][id1].append(dists[i, j])
+
+    return bond_dists
 
 
 def print_motifs(motifs):
