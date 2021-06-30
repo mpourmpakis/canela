@@ -214,7 +214,7 @@ class LPNC(object):
         self._get_motifs()
 
         # get atom structural ids
-        self.ids = id_atoms(self.atoms, self.info, self.motifs, self.scale)
+        self.ids = get_atom_ids(self.atoms, self.info, self.motifs, self.scale)
 
         # feature vector (fingerprint, fp)
         # n metals, n sulfurs, n core atoms, average CN of core atoms
@@ -639,7 +639,7 @@ def get_motif_name(mot_id):
     return name
 
 
-def id_atoms(atoms, cs_details=None, motifs=None, scale=SCALE):
+def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     """encode structural type of each atom in LPNC
     - (C[core] | S[shell], ...
     - For core:
