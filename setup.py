@@ -21,6 +21,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     packages=setuptools.find_packages(exclude=['tests']),
     entry_points={'console_scripts': [
+                'canela=canela.bin.canela:main',
                 'ncsep=canela.bin.ncsep:ncsep',
                 'sj_tmole=canela.bin.sj_tmole:main',
                 'thermo=canela.bin.thermochem:thermo',
