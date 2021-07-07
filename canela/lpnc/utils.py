@@ -2,6 +2,10 @@ import ase
 import ase.io
 
 
+class LPNCException(Exception):
+    """LPNC Exceptions"""
+
+
 def get_nc_label(n, m, ligand='SCH_3'):
     return f'$\\rm M_{{{n}}}({ligand})_{{{m}}}$'
 
@@ -21,9 +25,9 @@ def make_atoms_obj(atoms):
     try:
         atoms = ase.io.read(atoms)
         return atoms
-    except:
-        raise ValueError("path does not lead to a "
-                         "supported geometry file")
+    except FileNotFoundError:
+        raise LPNCException("path does not lead to a "
+                            "supported LPNC geometry file")
 
 
 def make_parity(ax, add_parity_line=True):

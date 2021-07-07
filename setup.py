@@ -20,15 +20,20 @@ setuptools.setup(
     long_description=description,
     long_description_content_type='text/markdown',
     packages=setuptools.find_packages(exclude=['tests']),
-    entry_points={'console_scripts': ['ncsep=canela.bin.ncsep:ncsep',
-                                      'sj_tmole=canela.bin.sj_tmole:main',
-                                      'thermo=canela.bin.thermochem:thermo',
-                                      'soap=canela.bin.soap:create_soap']},
+    entry_points={'console_scripts': [
+                'canela=canela.bin.canela:main',
+                'ncsep=canela.bin.ncsep:ncsep',
+                'sj_tmole=canela.bin.sj_tmole:main',
+                'thermo=canela.bin.thermochem:thermo',
+                'soap=canela.bin.soap:create_soap',
+                'lpnc_bond_analysis=canela.bin.lpnc_bond_analysis:main'
+                ]},
     include_package_data=True,  # include data files
     exclude_package_data={'': ['README.md']},
     python_requires='>=3.5',
     install_requires=['ase~=3.20',
-                      'click~=7.1'],
+                      'click~=7.1',
+                      'pyyaml~=5.4'],
                       #'dscribe~= 0.4'],
     tests_require=['pytest~=6.0'])
 

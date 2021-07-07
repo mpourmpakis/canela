@@ -1,7 +1,7 @@
 from __future__ import division
-import canela.lpnc.utils as utils
-import sys
 import os
+from collections import defaultdict
+from typing import Union
 import numpy as np
 import ase
 import ase.io
@@ -9,6 +9,7 @@ import ase.neighborlist
 from ase.data import covalent_radii
 from ase.data import chemical_symbols
 import ase.visualize
+import canela.lpnc.utils as utils
 
 
 # default bonding scale (SCALE * covalent_radii)
@@ -94,7 +95,7 @@ class Bonds(object):
 
     def _get_bonds(self):
         """finds bonds between atoms based on bonding radii
-    
+
         Sets:
         self.bond_arr (2d array of ints): [[bond-1-atom-1, bond-1-atom-2],
                                           [bond-2-atom-1, bond-2-atom-2],
@@ -188,7 +189,6 @@ class LPNC(object):
         self.n_m = np.isin(self.atoms.symbols, list(METALS)).sum()
         self.n_s = sum(self.atoms.symbols == 'S')
 
-
         # number of core atoms
         self.n_core = len(self.core)
 
@@ -215,7 +215,7 @@ class LPNC(object):
         self._get_motifs()
 
         # get atom structural ids
-        self.ids = id_atoms(self.atoms, self.info, self.motifs, self.scale)
+        self.ids = get_atom_ids(self.atoms, self.info, self.motifs, self.scale)
 
         # feature vector (fingerprint, fp)
         # n metals, n sulfurs, n core atoms, average CN of core atoms
@@ -433,7 +433,7 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
 
 
 def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
-    """algorithmically determine motif types and counts of metal NC
+    """algorithmically determine motif types and counts of LPNC
 
     Arguments:
         atom (ase.Atoms): metal NC atoms object
@@ -640,7 +640,7 @@ def get_motif_name(mot_id):
     return name
 
 
-def id_atoms(atoms, cs_details=None, motifs=None, scale=SCALE):
+def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     """encode structural type of each atom in LPNC
     - (C[core] | S[shell], ...
     - For core:
@@ -773,11 +773,61 @@ def id_atoms(atoms, cs_details=None, motifs=None, scale=SCALE):
     return id_arr
 
 
-def make_nc_fingerprint(atoms):
+def get_atom_id_latex_name(atom_id: str) -> str:
+    """create a latex-based label for an atom ID
+    - used in the bond distance analysis figure
+
+    Ex)
+    C_B_00_Au --> Au_{core}^{b00}
+    C_S_02_Ag --> Ag_{core}^{s02}
+    S_M_02_Au --> Au_{dimer}
+    S_S_-1_xx --> S_{sulfido}
+    S_S_01_xE --> S_{monomer}^{E}
+
+    See <get_atom_ids> for details on atom_id string
     """
-    [n_m, n_s, n_core, core_cn]
-    """
-    lpnc = LPNC(atoms)
+    # strip any x placeholder values
+    atom_id = [i.strip('x') for i in atom_id.split('_')]
+
+    # Handle core atoms
+    if atom_id[0] == 'C':
+        name = '$\\rm %s_{core}^{%s%s}$' % (atom_id[-1],
+                                            atom_id[1].lower(),
+                                            atom_id[2])
+    # Handle shell atoms
+    else:
+        el = atom_id[1] if atom_id[1] == 'S' else atom_id[-1]
+        # define element; S or metal
+        mot = get_motif_name(int(atom_id[2]))
+        name = '$\\rm %s_{%s}' % (el, mot[:4])
+        name = '$\\rm %s_{%s}' % (el, mot)
+        if atom_id[3] in {'M', 'E'}:
+            name += '^{%s}' % (atom_id[3])
+        name += '$'
+    return name
+
+
+def get_bond_distance_analysis(atoms: Union[ase.Atoms, str],
+                               scale=SCALE) -> dict:
+    # create LPNC object
+    mync = LPNC(atoms, scale=scale)
+
+    # get all interatomic distances
+    dists = mync.atoms.get_all_distances()
+
+    # create a dict of bond_distances organized by atom_id type
+    bond_dists = {s: defaultdict(list)
+                  for s in mync.ids[mync.ids != 'S_R_x_x']}
+
+    # only start from M's and S's
+    for i in np.where(mync.atoms.numbers >= 16)[0]:
+        id0 = mync.ids[i]
+        # iterate over all j atoms that bonds to atom i
+        for j in mync.bonds.coord_dict[i]:
+            id1 = mync.ids[j]
+            bond_dists[id0][id1].append(dists[i, j])
+
+    return bond_dists
 
 
 def print_motifs(motifs):
@@ -788,7 +838,8 @@ def print_motifs(motifs):
 
 
 def summ_nc_dir(dirpath, scale=SCALE):
-    """calculates core shell info and motifs of all XYZ files in a given directory
+    """calculates core shell info and motifs of all XYZ files in
+    a given directory
 
     Arguments:
         dirpath (str): path to a directory containing NC .xyz files
