@@ -1,14 +1,17 @@
-- name: lpnc_bond_analysis
-  info: Creates bond analysis plot to compare bond lengths based on atom ids
+- name: thermo
+  info: Calculate vibrational contributions to U, ZPE, Cv, and S
 
-- name: ncsep
-  info: "Dissects LPNC structure to determine: core, shell, ligands, and motifs"
+- name: add_cns
+  info: Adds CNs to XYZ geometry file for visualization in ASE GUI.
 
 - name: sj_tmole
   info: Setup Turbomole jobs (only need a geometry file)
 
+- name: ncsep
+  info: "Dissects LPNC structure to determine: core, shell, ligands, and motifs"
+
+- name: lpnc_bond_analysis
+  info: Creates bond analysis plot to compare bond lengths based on atom ids
+
 - name: soap
   info: Calculate SOAP fingerprints on spatial grid points of data from input .cube file
-
-- name: thermo
-  info: Calculate vibrational contributions to U, ZPE, Cv, and S

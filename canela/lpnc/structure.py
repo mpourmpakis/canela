@@ -140,6 +140,11 @@ class Bonds(object):
         # compute coordination numbers (CNs)
         self.cns = np.bincount(bonds.flatten())
 
+        # if some ending atoms have CN=0, we must pad cns array with 0's
+        if len(self.cns) < len(self.atoms):
+            n_missing = len(self.atoms) - len(self.cns)
+            self.cns = np.concatenate((self.cns, np.zeros(n_missing)))
+
 
 class LPNC(object):
     """dissect structure of ligand-protected metal nanocluster (LPNC)
