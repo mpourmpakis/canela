@@ -72,7 +72,7 @@ class Bonds(object):
         self.bond_arr = None
 
         # dict of atoms' 1st neighbors using a bond list
-        self.coord_dict = {a: set() for a in range(len(self.atoms))}
+        self.coord_dict = defaultdict(set)
 
         # array of coordination numbers (CNs)
         self.cns = None
