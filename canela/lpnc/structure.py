@@ -660,6 +660,9 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     Returns:
     (np.ndarray): 1D array of atom id's ordered by atoms object indices
     """
+    # create atoms object from path or do nothing if already atoms object
+    atoms = utils.make_atoms_obj(atoms)
+
     # initialize id dict
     ids = {}
 
