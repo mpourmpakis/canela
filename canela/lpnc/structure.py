@@ -649,7 +649,7 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     """encode structural type of each atom in LPNC
     - (C[core] | S[shell], ...
     - For core:
-        - (C, S[surface of core] | B[bulk], int[core layer])
+        - (C, int[core layer], int[coordination number])
         - core layer = 0[center], 1[layer 1], ..., n[surface]
     - For shell:
         - (S, R[R group of ligand])
@@ -677,16 +677,17 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     # use iterative apprach to find each core layer
     core_atoms = set(cs_details['core'])
     toremove = set()
-    layers = {}
+    layers = defaultdict(list)
     layer = 0
     for _ in range(1000):
-        if not core_atoms:
+        # If core atoms set is empty break out of loop
+        if not core_atoms: 
             break
         for c in core_atoms:
             # if c is not bonded to all other core atoms,
             # it is in the current layer
             if not all(i in core_atoms for i in bonds.coord_dict[c]):
-                layers[layer] = layers.get(layer, []) + [c]
+                layers[layer].append(c)
                 toremove.add(c)
         # remove all atoms found in current layer and shift one layer down
         layer -= 1
@@ -704,7 +705,7 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     for key in layers:
         bc = 'B' if key != 0 else 'S'
         for c in layers[key]:
-            ids[c] = f'C_{bc}_{key+toadd:02d}_{atoms[c].symbol:x>2}'
+            ids[c] = f'C_{key+toadd:d}_{bonds.cns[c]:02d}_{atoms[c].symbol:x>2}'
 
     # create array of shell atom indices
     shell = np.array(cs_details['shell'])
