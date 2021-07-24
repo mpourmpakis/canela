@@ -302,20 +302,18 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
 
     # first, find sulfido atoms (if any)
     sulfido = []
-    # can only find sulfido's if R group is present
-    # with no R groups, cannot differentiate b/n sulfido and bridge
-    if hasr:
-        # iterate over sulfur atoms
-        for s in np.where(atom.symbols == 'S')[0]:
-            # get indices of neighbors
-            bonded_to = bonds.coord_dict[s]
+    # sulfidos are bonded to 3 metals
+    # iterate over sulfur atoms
+    for s in np.where(atom.symbols == 'S')[0]:
+        # get indices of neighbors
+        bonded_to = bonds.coord_dict[s]
 
-            # count number of metal neighbors
-            mets = sum(a.symbol in METALS for a in atom[bonded_to])
+        # count number of metal neighbors
+        mets = sum(a.symbol in METALS for a in atom[bonded_to])
 
-            # S is a sulfido if all neighbors are metals and > 2 neighbors
-            if mets == len(bonded_to) > 2:
-                sulfido.append(s)
+        # S is a sulfido if all neighbors are metals and > 2 neighbors
+        if mets == len(bonded_to) > 2:
+            sulfido.append(s)
 
     # initialize list of core atom indices
     core = []
@@ -392,9 +390,6 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
     if show:
         print('')
         print(atom.get_chemical_formula('metal').center(CEN, '-'))
-
-        if not hasr:
-            print('Unable to find sulfidos (no Rs in NC)'.rjust(CEN))
 
         print('----- Sep. Info -----'.center(CEN))
         # create list of sep details
@@ -526,7 +521,6 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
 
     # get mapped sulfido atoms (if none, set to empty list)
     ms_sulfido = []
-    temp_ms_sulfido = None
     sulfido_counts = {}
     if len(sulfido):
         ms_sulfido = np.where(np.vstack(sulfido) == mapping_i)[1]
