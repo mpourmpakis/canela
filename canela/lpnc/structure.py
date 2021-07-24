@@ -1,16 +1,19 @@
 from __future__ import division
-import os
 from collections import defaultdict
-from typing import Union
-import numpy as np
+from dataclasses import dataclass
+import functools
+from itertools import cycle
+import os
+from typing import Literal, Union, List
+
 import ase
 import ase.io
 import ase.neighborlist
-from ase.data import covalent_radii
-from ase.data import chemical_symbols
+from ase.data import covalent_radii, chemical_symbols
 import ase.visualize
-import canela.lpnc.utils as utils
+import numpy as np
 
+import canela.lpnc.utils as utils
 
 # default bonding scale (SCALE * covalent_radii)
 SCALE = 1.1
@@ -203,8 +206,9 @@ class LPNC(object):
         self.just_core_cn_avg = self.info['justcorecnavg']
 
         # create ase.Atoms objects of each ligand
-        self.ligands = None
-        self._get_ligands()
+        self.ligand_map = get_ligand_map(self.atoms, self.bonds)
+        self.ligands = [self.atoms[[k] + v]
+                        for k, v in self.ligand_map.items()]
 
         # get number of sulfido atoms
         self.n_sulfido = len(self.info['sulfido'])
@@ -242,32 +246,6 @@ class LPNC(object):
 
     def __repr__(self):
         return self.atoms.get_chemical_formula('metal')
-
-    def _get_ligands(self):
-        self.ligands = []
-        # find all ligand atoms (atoms that are NOT metals)
-        all_ligands = self.atoms[np.isin(self.atoms.symbols,
-                                         list(METALS), invert=True)]
-        all_inds = set(range(len(all_ligands)))
-        lig_bonds = Bonds(all_ligands, self.scale)
-        for s in np.where(all_ligands.symbols == 'S')[0]:
-            lig = {s}
-
-            for _ in range(1000):
-                last = lig.copy()
-                for i in last:
-                    lig |= set(lig_bonds.coord_dict[i])
-                if len(lig) == len(last):
-                    self.ligands.append(all_ligands[list(lig)])
-                    all_inds -= lig
-                    break
-            else:
-                raise ValueError("Unable to correctly make ligands")
-
-        if all_inds:
-            raise ValueError("Leftover atoms when trying to make ligands")
-
-            self.ligands.append(all_ligands[list(lig)])
 
     def _get_motifs(self):
         shelli = np.array(self.info['shell'])
@@ -436,6 +414,50 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
             print('\n'.join(sep_dets))
 
     return info
+
+
+def get_ligand_map(atom: Union[ase.Atoms, str], bonds: Bonds = None,
+                   scale: float = SCALE) -> dict:
+    """map sulfur indices to ligand atoms
+
+    Arguments:
+        atom: metal NC atoms object
+
+    Keyword Arguments:
+        bonds: bond object containing all bond details
+                       (default: None: Bonds obj will be built)
+        scale: scale covalent radii of each atom - for determining
+                       bonds when no Bonds object is passed in
+                       (default: 1.0)
+
+    Returns:
+        {<sulfur index>: list of R group indices that are a part of ligand}
+    """
+    # create atoms object from path or do nothing if already atoms object
+    atom = utils.make_atoms_obj(atom)
+
+    # calculate bonds list (and neighborlist if necessary)
+    # create Bonds object if not given
+    if bonds is None:
+        bonds = Bonds(atom, scale=scale)
+
+    # get R group atom indices
+    r_group = set(np.where(~np.isin(atom.symbols, list(MS)))[0])
+
+    ligand_map = {}
+    for s in np.where(atom.symbols == 'S')[0]:
+        lig = set(bonds.coord_dict[s]) & r_group
+        for _ in range(1000):
+            last = lig.copy()
+            for i in last:
+                lig |= (set(bonds.coord_dict[i]) & r_group)
+            if lig == last:
+                ligand_map[s] = sorted(lig)
+                break
+        else:
+            raise utils.LPNCException('Unable to resolve ligand')
+
+    return ligand_map
 
 
 def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
