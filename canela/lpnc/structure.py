@@ -1,16 +1,19 @@
 from __future__ import division
-import os
 from collections import defaultdict
-from typing import Union
-import numpy as np
+from dataclasses import dataclass
+import functools
+from itertools import cycle
+import os
+from typing import Literal, Union, List
+
 import ase
 import ase.io
 import ase.neighborlist
-from ase.data import covalent_radii
-from ase.data import chemical_symbols
+from ase.data import covalent_radii, chemical_symbols
 import ase.visualize
-import canela.lpnc.utils as utils
+import numpy as np
 
+import canela.lpnc.utils as utils
 
 # default bonding scale (SCALE * covalent_radii)
 SCALE = 1.1
@@ -23,7 +26,8 @@ VCEN = int(CEN // 1.8)
 
 # set of transition metals
 METALS = set()
-[METALS.add(sym) for r in [21, 39, 71, 103] for sym in chemical_symbols[r:r+10]]
+[METALS.add(sym) for r in [21, 39, 71, 103]
+ for sym in chemical_symbols[r:r+10]]
 
 # set of metals and S
 MS = METALS.copy()
@@ -71,7 +75,7 @@ class Bonds(object):
         self.bond_arr = None
 
         # dict of atoms' 1st neighbors using a bond list
-        self.coord_dict = {a: set() for a in range(len(self.atoms))}
+        self.coord_dict = defaultdict(set)
 
         # array of coordination numbers (CNs)
         self.cns = None
@@ -202,8 +206,9 @@ class LPNC(object):
         self.just_core_cn_avg = self.info['justcorecnavg']
 
         # create ase.Atoms objects of each ligand
-        self.ligands = None
-        self._get_ligands()
+        self.ligand_map = get_ligand_map(self.atoms, self.bonds)
+        self.ligands = [self.atoms[[k] + v]
+                        for k, v in self.ligand_map.items()]
 
         # get number of sulfido atoms
         self.n_sulfido = len(self.info['sulfido'])
@@ -242,32 +247,6 @@ class LPNC(object):
     def __repr__(self):
         return self.atoms.get_chemical_formula('metal')
 
-    def _get_ligands(self):
-        self.ligands = []
-        # find all ligand atoms (atoms that are NOT metals)
-        all_ligands = self.atoms[np.isin(self.atoms.symbols,
-                                         list(METALS), invert=True)]
-        all_inds = set(range(len(all_ligands)))
-        lig_bonds = Bonds(all_ligands, self.scale)
-        for s in np.where(all_ligands.symbols == 'S')[0]:
-            lig = {s}
-
-            for _ in range(1000):
-                last = lig.copy()
-                for i in last:
-                    lig |= set(lig_bonds.coord_dict[i])
-                if len(lig) == len(last):
-                    self.ligands.append(all_ligands[list(lig)])
-                    all_inds -= lig
-                    break
-            else:
-                raise ValueError("Unable to correctly make ligands")
-
-        if all_inds:
-            raise ValueError("Leftover atoms when trying to make ligands")
-
-            self.ligands.append(all_ligands[list(lig)])
-
     def _get_motifs(self):
         shelli = np.array(self.info['shell'])
 
@@ -281,6 +260,48 @@ class LPNC(object):
 
         # map shell_motif indices back to original atoms object indices
         self.motifs = {k: shelli[v] for k, v in shell_motifs.items()}
+
+
+@dataclass(frozen=True)
+class AtomID:
+    index: int
+    symbol: str
+
+
+@dataclass(frozen=True)
+class CoreID(AtomID):
+    cn: int
+    layer: int
+    division = 'core'
+
+    @functools.lru_cache
+    def __str__(self):
+        """
+        Generate AtomID code string
+        """
+        return f'C_{self.symbol:x>2}_{self.cn:02d}_{self.layer:02d}'
+
+
+@dataclass(frozen=True)
+class ShellID(AtomID):
+    motif: int
+    position: Literal['end', 'middle']
+    division = 'shell'
+
+    @functools.cached_property
+    def motif_name(self) -> str:
+        return get_motif_name(self.motif)
+
+    @functools.lru_cache
+    def __str__(self):
+        """
+        Generate AtomID code string
+        """
+        a = 'S'
+        b = f'{self.symbol:x>2}'
+        c = f'{self.motif:02d}'
+        d = f'{self.position[0].upper():x>2}'
+        return '_'.join([a, b, c, d])
 
 
 def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
@@ -323,20 +344,18 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
 
     # first, find sulfido atoms (if any)
     sulfido = []
-    # can only find sulfido's if R group is present
-    # with no R groups, cannot differentiate b/n sulfido and bridge
-    if hasr:
-        # iterate over sulfur atoms
-        for s in np.where(atom.symbols == 'S')[0]:
-            # get indices of neighbors
-            bonded_to = bonds.coord_dict[s]
+    # sulfidos are bonded to 3 metals
+    # iterate over sulfur atoms
+    for s in np.where(atom.symbols == 'S')[0]:
+        # get indices of neighbors
+        bonded_to = bonds.coord_dict[s]
 
-            # count number of metal neighbors
-            mets = sum(a.symbol in METALS for a in atom[bonded_to])
+        # count number of metal neighbors
+        mets = sum(a.symbol in METALS for a in atom[bonded_to])
 
-            # S is a sulfido if all neighbors are metals and > 2 neighbors
-            if mets == len(bonded_to) > 2:
-                sulfido.append(s)
+        # S is a sulfido if all neighbors are metals and > 2 neighbors
+        if mets == len(bonded_to) > 2:
+            sulfido.append(s)
 
     # initialize list of core atom indices
     core = []
@@ -414,9 +433,6 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
         print('')
         print(atom.get_chemical_formula('metal').center(CEN, '-'))
 
-        if not hasr:
-            print('Unable to find sulfidos (no Rs in NC)'.rjust(CEN))
-
         print('----- Sep. Info -----'.center(CEN))
         # create list of sep details
         sep_dets = [
@@ -435,6 +451,50 @@ def get_core_shell(atom, bonds=None, scale=SCALE, show=False):
             print('\n'.join(sep_dets))
 
     return info
+
+
+def get_ligand_map(atom: Union[ase.Atoms, str], bonds: Bonds = None,
+                   scale: float = SCALE) -> dict:
+    """map sulfur indices to ligand atoms
+
+    Arguments:
+        atom: metal NC atoms object
+
+    Keyword Arguments:
+        bonds: bond object containing all bond details
+                       (default: None: Bonds obj will be built)
+        scale: scale covalent radii of each atom - for determining
+                       bonds when no Bonds object is passed in
+                       (default: 1.0)
+
+    Returns:
+        {<sulfur index>: list of R group indices that are a part of ligand}
+    """
+    # create atoms object from path or do nothing if already atoms object
+    atom = utils.make_atoms_obj(atom)
+
+    # calculate bonds list (and neighborlist if necessary)
+    # create Bonds object if not given
+    if bonds is None:
+        bonds = Bonds(atom, scale=scale)
+
+    # get R group atom indices
+    r_group = set(np.where(~np.isin(atom.symbols, list(MS)))[0])
+
+    ligand_map = {}
+    for s in np.where(atom.symbols == 'S')[0]:
+        lig = set(bonds.coord_dict[s]) & r_group
+        for _ in range(1000):
+            last = lig.copy()
+            for i in last:
+                lig |= (set(bonds.coord_dict[i]) & r_group)
+            if lig == last:
+                ligand_map[s] = sorted(lig)
+                break
+        else:
+            raise utils.LPNCException('Unable to resolve ligand')
+
+    return ligand_map
 
 
 def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
@@ -503,7 +563,6 @@ def count_motifs(atom, scale=SCALE, show=False, sulfido=[]):
 
     # get mapped sulfido atoms (if none, set to empty list)
     ms_sulfido = []
-    temp_ms_sulfido = None
     sulfido_counts = {}
     if len(sulfido):
         ms_sulfido = np.where(np.vstack(sulfido) == mapping_i)[1]
@@ -645,20 +704,23 @@ def get_motif_name(mot_id):
     return name
 
 
-def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
+def get_atom_ids(atoms, cs_details=None, motifs=None,
+                 scale=SCALE) -> List[AtomID]:
     """encode structural type of each atom in LPNC
-    - (C[core] | S[shell], ...
+    - (C[core] | S[shell], el [chemical symbol], ...
     - For core:
-        - (C, int[core layer], int[coordination number])
+        - (C, el, int[coordination number], int[core layer])
         - core layer = 0[center], 1[layer 1], ..., n[surface]
     - For shell:
-        - (S, R[R group of ligand])
-        - (S, M[metal] | S[sulfur] , int[motif type], E[end] | M[middle])
+        - (S, el, int[motif type], E[end] | M[middle])
         - end = sulfur atom that terminates a motif (at least one bond to core)
 
     Returns:
-    (np.ndarray): 1D array of atom id's ordered by atoms object indices
+    list of AtomIDs (CoreID | ShellID) ordered by atoms object indices
     """
+    # create atoms object from path or do nothing if already atoms object
+    atoms = utils.make_atoms_obj(atoms)
+
     # initialize id dict
     ids = {}
 
@@ -681,7 +743,7 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     layer = 0
     for _ in range(1000):
         # If core atoms set is empty break out of loop
-        if not core_atoms: 
+        if not core_atoms:
             break
         for c in core_atoms:
             # if c is not bonded to all other core atoms,
@@ -694,7 +756,7 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
         core_atoms -= toremove
         toremove = set()
     else:
-        raise ValueError("Unable to identify core atom layers")
+        raise utils.LPNCException("Unable to identify core atom layers")
 
     # add back to layer count such that
     # 0: central core atom(s)
@@ -703,17 +765,12 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
     # final id: C_(B|S)_<layer number>_x
     toadd = abs(min(layers))
     for key in layers:
-        bc = 'B' if key != 0 else 'S'
         for c in layers[key]:
-            ids[c] = f'C_{key+toadd:d}_{bonds.cns[c]:02d}_{atoms[c].symbol:x>2}'
+            layer = key + toadd
+            ids[c] = CoreID(c, atoms.symbols[c], bonds.cns[c], layer)
 
     # create array of shell atom indices
     shell = np.array(cs_details['shell'])
-
-    # DEFINE LIGAND IDs (R groups)
-    r_group = shell[~np.isin(atoms[shell].symbols, list(METALS) + ['S'])]
-    for r in r_group:
-        ids[r] = 'S_R_xx_xx'
 
     # get motifs dict
     if motifs is None:
@@ -728,55 +785,49 @@ def get_atom_ids(atoms, cs_details=None, motifs=None, scale=SCALE):
         motifs = {k: shell[v] for k, v in shell_motifs.items()}
 
     # DEFINE SHELL MOTIF IDs
-    for mtype in motifs:
-        mtype_str = f'{mtype:02d}'
+    ligand_map = get_ligand_map(atoms, bonds)
 
-        for mot in motifs[mtype]:
-            names = np.array(['x_x_xx_xx'] * len(mot))
-            # handle rings
-            if mtype < -1:
-                inds = np.arange(len(names))
-                if atoms[mot[0]].symbol in METALS:
-                    mets = inds[::2]
-                    sulf = inds[1::2]
-                else:
-                    mets = inds[1::2]
-                    sulf = inds[::2]
-                # define sulfur ids
-                names[sulf] = f'S_S_{mtype_str}_xM'
+    for mtype in sorted(motifs):
+        # handle bridge, sulfido, and rings
+        if mtype < 1:
+            # X-meric rings are all middle atoms
+            # bridge and sulfidos considered 'end' motifs
+            position = 'middle' if mtype < -1 else 'end'
+            for ms in motifs[mtype].flatten():
+                ids[ms] = ShellID(ms, atoms.symbols[ms], mtype, position)
 
-                for m in mets:
-                    sym = atoms[mot[m]].symbol
-                    names[m] = f'S_M_{mtype_str}_{sym:x>2}'
+            # define R groups (no need for sulfidos [0])
+            if mtype != -1:
+                # only need to look at sulfurs (even columns)
+                for s in motifs[mtype][:, ::2].flatten():
+                    for r in ligand_map[s]:
+                        ids[r] = ShellID(r, atoms.symbols[r], mtype, 'middle')
 
-            # handle bridge and sulfido S's
-            elif mtype < 1:
-                names[:] = f'S_S_{mtype_str}_xE'
+        # handle all other "typical" motifs
+        else:
+            # create list for end and middle position labels
+            positions = ['middle'] * motifs[mtype].shape[1]
+            positions[0] = 'end'
+            positions[-1] = 'end'
 
-            # handle all other "typical" motifs
-            else:
-                # define end and middle S's
-                names[0] = f'S_S_{mtype_str}_xE'
-                names[2:-1:2] = f'S_S_{mtype_str}_xM'
-                names[-1] = f'S_S_{mtype_str}_xE'
+            # motif value is 2D array of ms indices
+            for ms, position in zip(motifs[mtype].flatten(), cycle(positions)):
+                # make sure id is not already defined
+                # (avoid overwriting sulfido atoms)
+                if ms not in ids:
+                    ids[ms] = ShellID(ms, atoms.symbols[ms], mtype, position)
 
-                # define M's
-                for i in range(1, len(names), 2):
-                    sym = atoms[mot[i]].symbol
-                    names[i] = f'S_M_{mtype_str}_{sym:x>2}'
+                # if ms is S, add in its ligand atoms
+                if atoms.symbols[ms] == 'S':
+                    for r in ligand_map[ms]:
+                        ids[r] = ShellID(ms, atoms.symbols[r], mtype, position)
 
-            for i in range(len(names)):
-                # make sure it isn't already filled in
-                # this will avoid overwriting sulfido ids
-                if mot[i] not in ids:
-                    ids[mot[i]] = names[i]
+    id_list = [ids[i] for i in sorted(ids)]
 
-    id_arr = np.array([ids[i] for i in sorted(ids)])
+    if len(id_list) != len(atoms):
+        raise utils.LPNCException("unable to map to all atoms in LPNC")
 
-    if len(id_arr) != len(atoms):
-        raise ValueError("unable to map to all atoms in LPNC")
-
-    return id_arr
+    return id_list
 
 
 def get_atom_id_latex_name(atom_id: str) -> str:
