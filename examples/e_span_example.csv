@@ -1,0 +1,6 @@
+state,Pt,HxWO3
+empty surface,0,0
+volmer_ts,0.222,0.7
+volmer_ads,0.211,-0.6
+heyrovsky_ts,0.497,-0.058
+heyrovsky_ads,-0.648,-1.02
