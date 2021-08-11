@@ -21,13 +21,14 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     packages=setuptools.find_packages(exclude=['tests']),
     entry_points={'console_scripts': [
-                'canela=canela.bin.canela:main',
+                'canela=canela.bin.canela_info:main',
                 'thermo=canela.bin.thermochem:thermo',
                 'add_cns=canela.bin.add_cns:main',
                 'sj_tmole=canela.bin.sj_tmole:main',
                 'ncsep=canela.bin.ncsep:ncsep',
                 'lpnc_bond_analysis=canela.bin.lpnc_bond_analysis:main',
-                'soap=canela.bin.soap:create_soap'
+                'soap=canela.bin.soap:create_soap',
+                'e_span=canela.bin.e_span:e_span'
                 ]},
     include_package_data=True,  # include data files
     exclude_package_data={'': ['README.md']},

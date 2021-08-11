@@ -15,3 +15,6 @@
 
 - name: soap
   info: Calculate SOAP fingerprints on spatial grid points of data from input .cube file
+
+- name: e_span
+  info: Calculate TOFs and limiting states based on the energy span approximation
