@@ -1,9 +1,10 @@
 import setuptools
 
 # read in version of canela package
+v = {}
 with open('canela/_version.py', 'r') as fid:
     # this will create the __version__ variable to be used below
-    exec(fid.read())
+    exec(fid.read(), v)
 
 # use README file to create long description of package
 # ignore images (lines that start with '![')
@@ -13,7 +14,7 @@ with open('README.md', 'r') as readme:
 
 setuptools.setup(
     name='canela',
-    version=__version__,
+    version=v['__version__'],
     author='CANELa (Mpourmpakis Lab)',
     url='https://www.github.com/mpourmpakis/canela',
     description="CANELa tools to setup, track, and analyze comp chem calcs",
@@ -37,5 +38,6 @@ setuptools.setup(
                       'click~=7.1',
                       'pyyaml~=5.4'],
                       #'dscribe~= 0.4'],
+    package_data={'canela': ['bin/*.yml']},
     tests_require=['pytest~=6.0'])
 
