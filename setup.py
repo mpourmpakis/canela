@@ -37,5 +37,6 @@ setuptools.setup(
                       'click~=7.1',
                       'pyyaml~=5.4'],
                       #'dscribe~= 0.4'],
+    package_data={'canela': ['bin/*.yml']},
     tests_require=['pytest~=6.0'])
 
